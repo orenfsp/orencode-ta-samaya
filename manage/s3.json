@@ -1,0 +1,13 @@
+{
+  "identities": [
+    {
+      "name": "fsp",
+      "credentials": [{"accessKey": "fsp", "secretKey": "fsp-storage-secret"}],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    },
+    {
+      "name": "anonymous",
+      "actions": ["Read:fsp-public"]
+    }
+  ]
+}

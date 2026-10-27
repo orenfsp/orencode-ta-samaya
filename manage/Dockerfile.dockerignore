@@ -1,0 +1,8 @@
+.git
+.vscode
+manage/fsp.py
+frontend
+docs
+**/__pycache__
+**/*.pyc
+*.docx

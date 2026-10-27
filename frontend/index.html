@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1B1C21" />
+    <meta
+      name="description"
+      content="Единая цифровая платформа Федерации спортивного программирования Оренбургской области"
+    />
+    <!-- Тема до первого кадра, чтобы страница не мигала: сохранённая, иначе тёмная -->
+    <script>
+      try {
+        var theme = localStorage.getItem('fsp.theme')
+        document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark'
+      } catch (e) {}
+    </script>
+    <title>ФСП Оренбургской области</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/app/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+<svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<!-- Для дисциплин без своей иконки. Стиль официальных: светлые линии 2px, синие акценты -->
+	<path d="M19 17L10 26L19 35M33 17L42 26L33 35" stroke="#1B1C21" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+	<path d="M29 13L23 39" stroke="#1B1C21" stroke-width="2" stroke-linecap="round"/>
+	<rect x="22" y="22" width="8" height="8" rx="2.5" fill="#402FFF"/>
+	<circle cx="42" cy="26" r="2.5" fill="#402FFF"/>
+</svg>

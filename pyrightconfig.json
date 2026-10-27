@@ -1,0 +1,8 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": ["backend", ".", "manage"],
+  "pythonVersion": "3.12",
+  "include": ["backend", "infrastructure", "manage"],
+  "exclude": ["**/__pycache__", ".venv", "frontend"]
+}

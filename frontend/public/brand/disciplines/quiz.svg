@@ -1,0 +1,7 @@
+<svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<!-- Нарисована в стиле официальных иконок дисциплин ФСП: светлые линии 2px, синие акценты -->
+	<path d="M13 10H39C41.2 10 43 11.8 43 14V31C43 33.2 41.2 35 39 35H24L15 42V35H13C10.8 35 9 33.2 9 31V14C9 11.8 10.8 10 13 10Z" stroke="#EDEDED" stroke-width="2" stroke-linejoin="round"/>
+	<path d="M21.5 19.5C21.5 17 23.5 15.5 26 15.5C28.5 15.5 30.5 17 30.5 19.3C30.5 22.8 26 22.6 26 26.5" stroke="#402FFF" stroke-width="2.5" stroke-linecap="round"/>
+	<circle cx="26" cy="30.5" r="1.8" fill="#402FFF"/>
+	<circle cx="43" cy="14" r="2.5" fill="#402FFF"/>
+</svg>

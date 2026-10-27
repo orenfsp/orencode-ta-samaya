@@ -1,0 +1,373 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/700.css';
+@import '@fontsource/roboto/400.css';
+@import '@fontsource/roboto/500.css';
+@import '@fontsource/roboto/700.css';
+
+/* light: — стили только для светлой темы (логотипы, знак). Тёмная — по умолчанию */
+@custom-variant light (&:where([data-theme='light'], [data-theme='light'] *));
+
+/* Дефолтные палитры, шрифты, размеры и тени Tailwind выключены: в коде доступны только токены ФСП */
+@theme inline {
+  --color-*: initial;
+  --color-white: var(--fsp-white);
+  /* Затемнение под просмотром фото — одинаковое в обеих темах, фото смотрят на тёмном */
+  --color-photo-scrim: color-mix(in oklab, var(--fsp-ink) 92%, transparent);
+  --color-photo-control: color-mix(in oklab, var(--fsp-ink) 55%, transparent);
+  --color-primary: var(--c-primary);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-primary-press: var(--c-primary-press);
+  --color-primary-soft: var(--c-primary-soft);
+  --color-primary-ring: var(--c-primary-ring);
+  --color-danger: var(--c-danger);
+  --color-danger-strong: var(--c-danger-strong);
+  --color-danger-hover: var(--c-danger-hover);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-danger-text: var(--c-danger-text);
+  --color-primary-text: var(--c-primary-text);
+  /* Второй акцент — красный ФСП для «живого»: идёт сейчас, сегодня, ближайшее, отмена */
+  --color-live: var(--c-danger);
+  --color-live-soft: var(--c-danger-soft);
+  --color-live-text: var(--c-danger-text);
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
+  --color-line: var(--c-line);
+  --color-line-soft: var(--c-line-soft);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-hover-tint: var(--c-hover-tint);
+  --color-press-tint: var(--c-press-tint);
+  --color-paper: var(--c-paper);
+  --color-paper-2: var(--c-paper-2);
+  --color-on-paper: var(--c-on-paper);
+  --color-on-paper-muted: var(--c-on-paper-muted);
+  --color-scrim: var(--c-scrim);
+}
+
+@theme {
+  --font-*: initial;
+  /* Текст — Roboto, заголовки и цифры-акценты — фирменный JetBrains Mono */
+  --font-sans: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /* Типографика по шкале кита (mobile → desktop), плавно между 375 и 1024 px */
+  --text-*: initial;
+  --text-display: clamp(2.5rem, 1.5rem + 4vw, 4rem);
+  --text-display--line-height: 1;
+  --text-h1: clamp(1.75rem, 1.2rem + 2.2vw, 2.75rem);
+  --text-h1--line-height: 1.15;
+  --text-h2: clamp(1.375rem, 1rem + 1.6vw, 2rem);
+  --text-h2--line-height: 1.2;
+  --text-h3: clamp(1.125rem, 1rem + 0.6vw, 1.375rem);
+  --text-h3--line-height: 1.25;
+  --text-lead: clamp(1rem, 0.94rem + 0.3vw, 1.125rem);
+  --text-lead--line-height: 1.5;
+  --text-body: clamp(0.9375rem, 0.9rem + 0.15vw, 1rem);
+  --text-body--line-height: 1.5;
+  --text-sm: clamp(0.75rem, 0.72rem + 0.1vw, 0.8125rem);
+  --text-sm--line-height: 1.4;
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1.3;
+
+  /* Скругления как на fsp-russia.ru: контролы 8, карточки 12, секции 16–24 */
+  --radius-*: initial;
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Сайт плоский: глубину держат подложки и тонкие линии. Тень — только у слоёв поверх страницы */
+  --shadow-*: initial;
+  --shadow-layer: var(--c-shadow-layer);
+
+  /* Внешняя рамка шапки, футера и hero: контейнер 1200 + поля */
+  --container-shell: 77rem;
+
+  --ease-*: initial;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-skeleton: skeleton 1.6s var(--ease-standard) infinite;
+  --animate-spin: spin 0.7s linear infinite;
+  --animate-rise: rise 340ms var(--ease-emphasized) both;
+
+  @keyframes skeleton {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  --animate-pop-in: pop-in 260ms var(--ease-spring) both;
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+  }
+  --animate-step-forward: step-forward 420ms var(--ease-emphasized) both;
+  --animate-step-back: step-back 420ms var(--ease-emphasized) both;
+  /* Знак въезжает с лёгким поворотом и дальше еле заметно дышит */
+  --animate-mark: mark-in 1.4s var(--ease-emphasized) both, mark-drift 24s ease-in-out 1.4s infinite;
+
+  /* Полоски шкал вырастают из своей точки: по ширине слева, по высоте снизу */
+  --animate-grow: grow-x 700ms var(--ease-emphasized) both;
+  --animate-grow-up: grow-y 700ms var(--ease-emphasized) both;
+
+  @keyframes grow-x {
+    from {
+      transform: scaleX(0);
+    }
+  }
+  @keyframes grow-y {
+    from {
+      transform: scaleY(0);
+    }
+  }
+  @keyframes step-forward {
+    from {
+      opacity: 0;
+      transform: translateX(32px);
+    }
+  }
+  @keyframes step-back {
+    from {
+      opacity: 0;
+      transform: translateX(-32px);
+    }
+  }
+  @keyframes mark-in {
+    from {
+      opacity: 0;
+      transform: translate(6%, 6%) rotate(-8deg) scale(0.94);
+    }
+  }
+  @keyframes mark-drift {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    50% {
+      transform: rotate(3deg) translate(-1%, -1%);
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+}
+
+@layer base {
+  html {
+    background: var(--c-canvas);
+    color: var(--c-ink);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100dvh;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  /* Заголовки автоматически моноширинные: и тегом, и классом размера */
+  :where(h1, h2, h3, .text-display, .text-h1, .text-h2, .text-h3) {
+    font-family: var(--font-mono);
+  }
+
+  /* Автозаполнение Chrome красит поле светлым — на тёмной теме перекрашиваем внутренней тенью */
+  input:-webkit-autofill,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--c-ink);
+    caret-color: var(--c-ink);
+    -webkit-box-shadow: 0 0 0 100vmax var(--c-surface-2) inset;
+  }
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow:
+      0 0 0 100vmax var(--c-surface-2) inset,
+      0 0 0 1px var(--c-primary),
+      0 0 0 5px var(--c-primary-ring);
+  }
+
+  ::selection {
+    background: var(--c-primary);
+    color: var(--fsp-white);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--c-primary);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Роли поверхностей: в компонентах — только они, а не набор border/shadow вручную */
+@utility panel {
+  background: var(--c-surface);
+  border-radius: var(--radius-2xl);
+  box-shadow: inset 0 0 0 1px var(--c-card-border);
+}
+
+@utility card {
+  background: var(--c-surface-2);
+  border-radius: var(--radius-lg);
+  /* Рамка тенью-контуром: не меняет размеры, на ховере ссылки красится в синий */
+  box-shadow: inset 0 0 0 1px var(--c-card-border);
+  transition-property: translate, background-color, box-shadow;
+}
+
+@utility overlay {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line-soft);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-layer);
+}
+
+@utility inset {
+  background: var(--c-surface-3);
+  border-radius: var(--radius-md);
+}
+
+@utility container-page {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+  @media (width >= 64rem) {
+    padding-inline: 2rem;
+  }
+}
+
+/* Нажатие: лёгкое проседание. Только transform — не дёргает раскладку */
+@utility pressable {
+  transition-property:
+    transform, translate, scale, background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 180ms;
+  transition-timing-function: var(--ease-standard);
+  &:active:not(:disabled, [aria-disabled='true']) {
+    transform: scale(0.97);
+    transition-duration: 90ms;
+  }
+}
+
+/* Поле в фокусе: синяя граница + мягкий ореол. Ореол — box-shadow, поэтому без сдвига раскладки */
+@utility field-focus {
+  border-color: var(--c-primary);
+  box-shadow:
+    0 0 0 1px var(--c-primary),
+    0 0 0 5px var(--c-primary-ring);
+}
+
+@utility field-invalid {
+  border-color: var(--c-danger);
+  box-shadow: 0 0 0 1px var(--c-danger);
+}
+
+/* Подчёркивание ссылки «прорастает» слева направо */
+@utility link-underline {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1px;
+  transition: background-size 220ms var(--ease-emphasized);
+  &:hover {
+    background-size: 100% 1px;
+  }
+}
+
+/*
+ * Сетка-подложка, как в карточках дисциплин на fsp-russia.ru: шаг 10px, линии 1px, к краям гаснет.
+ * Рисуется псевдоэлементом, поэтому маска не трогает содержимое.
+ */
+@utility grid-texture {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    background-image:
+      linear-gradient(to right, var(--c-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--c-grid-line) 1px, transparent 1px);
+    background-size: 10px 10px;
+    mask-image: radial-gradient(ellipse 90% 80% at 35% 30%, #000 20%, transparent 95%);
+    transition: opacity 340ms var(--ease-standard);
+  }
+}
+
+/* Смена темы: новая тема «раскрывается» кругом от кнопки переключателя (View Transitions) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-reveal 520ms var(--ease-emphasized);
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--theme-x, 50%) var(--theme-y, 0%));
+  }
+  to {
+    clip-path: circle(150% at var(--theme-x, 50%) var(--theme-y, 0%));
+  }
+}
+
+/* Печать документа (DocumentSheet): на бумагу уходит только лист, без шапки, меню и теней */
+@media print {
+  body:has(.document-sheet) * {
+    visibility: hidden;
+  }
+  .document-sheet,
+  .document-sheet * {
+    visibility: visible;
+  }
+  .document-sheet {
+    position: absolute;
+    inset: 0;
+    max-width: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+}

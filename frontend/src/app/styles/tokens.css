@@ -1,0 +1,102 @@
+/*
+ * Фирменная палитра ФСП — пять цветов брендбука и белый, две темы.
+ * Оттенки — только смеси этих пяти, новых цветов не вводим.
+ * Два акцента: синий — действия и выбор, красный — «живое» и важное (идёт сейчас, сегодня, ближайшее, отмена).
+ * Тема ставится атрибутом data-theme на <html> до первого кадра (index.html), по умолчанию тёмная.
+ * Контраст основного текста ≥ 7:1, вторичного ≥ 4.5:1 в обеих темах.
+ */
+:root {
+  --fsp-blue: #402fff;
+  --fsp-red: #ec1d35;
+  --fsp-light: #ededed;
+  --fsp-gray: #c8c9ca;
+  --fsp-ink: #1b1c21;
+  --fsp-white: #ffffff;
+}
+
+/* Тёмная — как fsp-russia.ru: база #1B1C21, светлые «бумажные» плашки, синий только заливкой */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --c-primary: var(--fsp-blue);
+  --c-primary-hover: color-mix(in oklab, var(--fsp-blue) 88%, var(--fsp-white));
+  --c-primary-press: color-mix(in oklab, var(--fsp-blue) 82%, var(--fsp-ink));
+  --c-primary-soft: color-mix(in oklab, var(--fsp-blue) 24%, var(--fsp-ink));
+  --c-primary-ring: color-mix(in oklab, var(--fsp-blue) 55%, transparent);
+  /* Синий текстом на тёмном не читается (2.5:1) — для текста акцента берём светлую смесь */
+  --c-primary-text: color-mix(in oklab, var(--fsp-blue) 45%, var(--fsp-white));
+
+  --c-danger: var(--fsp-red);
+  --c-danger-strong: color-mix(in oklab, var(--fsp-red) 86%, var(--fsp-ink));
+  --c-danger-hover: color-mix(in oklab, var(--fsp-red) 92%, var(--fsp-white));
+  --c-danger-soft: color-mix(in oklab, var(--fsp-red) 20%, var(--fsp-ink));
+  --c-danger-text: color-mix(in oklab, var(--fsp-red) 62%, var(--fsp-white));
+
+  --c-canvas: var(--fsp-ink);
+  --c-surface: color-mix(in oklab, var(--fsp-ink) 96%, var(--fsp-white));
+  --c-surface-2: color-mix(in oklab, var(--fsp-ink) 91%, var(--fsp-white));
+  --c-surface-3: color-mix(in oklab, var(--fsp-ink) 85%, var(--fsp-white));
+  --c-line: color-mix(in oklab, var(--fsp-gray) 26%, var(--fsp-ink));
+  --c-line-soft: color-mix(in oklab, var(--fsp-gray) 13%, var(--fsp-ink));
+  /* Рамка карточки: в тёмной карточку отделяет тон, в светлой — тонкая линия */
+  --c-card-border: transparent;
+
+  --c-ink: var(--fsp-light);
+  --c-muted: color-mix(in oklab, var(--fsp-gray) 78%, var(--fsp-ink));
+  --c-hover-tint: color-mix(in oklab, var(--fsp-light) 7%, transparent);
+  --c-press-tint: color-mix(in oklab, var(--fsp-light) 12%, transparent);
+
+  --c-paper: var(--fsp-light);
+  --c-paper-2: color-mix(in oklab, var(--fsp-light) 88%, var(--fsp-gray));
+  --c-on-paper: var(--fsp-ink);
+  --c-on-paper-muted: color-mix(in oklab, var(--fsp-ink) 68%, var(--fsp-light));
+
+  --c-grid-line: color-mix(in oklab, var(--fsp-gray) 9%, transparent);
+  --c-scrim: color-mix(in oklab, #000 62%, transparent);
+  --c-shadow-layer: 0 24px 64px -16px rgb(0 0 0 / 0.6);
+}
+
+/*
+ * Светлая — все нейтрали из одной смеси «ink + белый»: холодные и чистые, без тёплой серой мути.
+ * Фон чуть темнее белого, поверхности белые с тонкой рамкой — контраст держит граница, а не серость.
+ * Синий в светлой можно и текстом (5.8:1 на белом).
+ */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --c-primary: var(--fsp-blue);
+  --c-primary-hover: color-mix(in oklab, var(--fsp-blue) 86%, var(--fsp-ink));
+  --c-primary-press: color-mix(in oklab, var(--fsp-blue) 76%, var(--fsp-ink));
+  --c-primary-soft: color-mix(in oklab, var(--fsp-blue) 8%, var(--fsp-white));
+  --c-primary-ring: color-mix(in oklab, var(--fsp-blue) 28%, transparent);
+  --c-primary-text: var(--fsp-blue);
+
+  --c-danger: var(--fsp-red);
+  --c-danger-strong: color-mix(in oklab, var(--fsp-red) 86%, var(--fsp-ink));
+  --c-danger-hover: color-mix(in oklab, var(--fsp-red) 76%, var(--fsp-ink));
+  --c-danger-soft: color-mix(in oklab, var(--fsp-red) 8%, var(--fsp-white));
+  --c-danger-text: color-mix(in oklab, var(--fsp-red) 86%, var(--fsp-ink));
+
+  --c-canvas: color-mix(in oklab, var(--fsp-ink) 3.5%, var(--fsp-white));
+  --c-surface: var(--fsp-white);
+  --c-surface-2: var(--fsp-white);
+  --c-surface-3: color-mix(in oklab, var(--fsp-ink) 6%, var(--fsp-white));
+  --c-line: color-mix(in oklab, var(--fsp-ink) 20%, var(--fsp-white));
+  --c-line-soft: color-mix(in oklab, var(--fsp-ink) 10%, var(--fsp-white));
+  --c-card-border: var(--c-line-soft);
+
+  --c-ink: var(--fsp-ink);
+  --c-muted: color-mix(in oklab, var(--fsp-ink) 66%, var(--fsp-white));
+  --c-hover-tint: color-mix(in oklab, var(--fsp-ink) 4.5%, transparent);
+  --c-press-tint: color-mix(in oklab, var(--fsp-ink) 8%, transparent);
+
+  --c-paper: var(--fsp-white);
+  --c-paper-2: color-mix(in oklab, var(--fsp-ink) 5%, var(--fsp-white));
+  --c-on-paper: var(--fsp-ink);
+  --c-on-paper-muted: color-mix(in oklab, var(--fsp-ink) 66%, var(--fsp-white));
+
+  --c-grid-line: color-mix(in oklab, var(--fsp-ink) 4.5%, transparent);
+  --c-scrim: color-mix(in oklab, var(--fsp-ink) 32%, transparent);
+  --c-shadow-layer: 0 1px 2px rgb(27 28 33 / 0.06), 0 24px 56px -24px rgb(27 28 33 / 0.22);
+}
