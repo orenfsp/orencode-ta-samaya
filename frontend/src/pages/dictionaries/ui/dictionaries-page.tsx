@@ -11,7 +11,7 @@ import {
   type DictionaryInfo,
   type DictionaryKey,
 } from '@/entities/dictionary'
-import { ItemActions, ItemFormDrawer, QuickAdd, useDictionaryActions } from '@/features/dictionary-manage'
+import { ItemActions, ItemFormModal, QuickAdd, useDictionaryActions } from '@/features/dictionary-manage'
 import { routes } from '@/shared/config'
 import { cn, plural } from '@/shared/lib'
 import {
@@ -186,7 +186,7 @@ function DictionaryView({ catalog, current }: { catalog: DictionaryInfo[]; curre
         </div>
       </div>
 
-      <ItemFormDrawer
+      <ItemFormModal
         key={form.session}
         open={form.open}
         item={form.item}

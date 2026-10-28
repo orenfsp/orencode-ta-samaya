@@ -1,11 +1,12 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEventHandler, type ReactNode } from 'react'
 import { cn } from '@/shared/lib'
 import { Button } from './button'
 import { IconButton } from './icon-button'
 import { IconClose } from './icons'
 import { PortalContext } from './portal-context'
 
-const EXIT_MS = 220
+/** Выход короче входа: закрытие не должно задерживать человека */
+const EXIT_MS = 180
 
 export interface ModalProps {
   open: boolean
@@ -14,20 +15,34 @@ export interface ModalProps {
   description?: ReactNode
   children?: ReactNode
   footer?: ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  /** sm — подтверждение, md — короткая форма, lg — форма сущности, xl — списки и таблицы */
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  /** Окно — форма: Enter в поле отправляет, кнопка type="submit" в footer работает */
+  onSubmit?: FormEventHandler<HTMLFormElement>
 }
 
-const sizes = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' }
+const sizes = { sm: 'sm:max-w-md', md: 'sm:max-w-xl', lg: 'sm:max-w-3xl', xl: 'sm:max-w-5xl' }
 
 /**
+ * Единственное модальное окно в проекте: по центру на десктопе, шторкой снизу на телефоне.
+ * Шапка и подвал на месте, прокручивается только середина — длинная форма влезает в любой экран.
+ *
  * Нативный <dialog>: фокус-ловушка, Escape и инертный фон — от браузера.
- * Анимацию входа/выхода ведём сами: showModal → кадр → data-open, на закрытие — ждём выход и только потом close().
- * data-open ставим прямо в DOM: это синхронизация с внешней системой, лишний рендер не нужен.
- * На телефоне окно выезжает снизу шторкой.
+ * Вход: фон проявляется, окно поднимается на 12px и чуть растёт (280 мс). Выход быстрее и без пружины (180 мс).
+ * data-open пишем прямо в DOM-узел — это синхронизация с браузерным диалогом, не состояние React.
  */
-export function Modal({ open, onClose, title, description, children, footer, size = 'md' }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  size = 'md',
+  onSubmit,
+}: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null)
-  // Элемент диалога — в состоянии: вложенные поповеры рендерятся в него, а ref во время рендера читать нельзя
+  // Узел диалога — в состоянии: вложенные поповеры рендерятся в него, а ref во время рендера читать нельзя
   const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null)
   const titleId = useId()
   const descriptionId = useId()
@@ -41,6 +56,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
       const frame = requestAnimationFrame(() => (dialog.dataset.open = 'true'))
       return () => cancelAnimationFrame(frame)
     }
+    if (!dialog.open) return
     dialog.dataset.open = 'false'
     const timer = setTimeout(() => {
       dialog.close()
@@ -50,6 +66,10 @@ export function Modal({ open, onClose, title, description, children, footer, siz
   }, [open])
 
   useEffect(() => () => void (document.documentElement.style.overflow = ''), [])
+
+  // Без onSubmit тело — обычный блок: form внутри формы не нужна
+  const Panel = (onSubmit ? 'form' : 'section') as 'form'
+  const roomy = size === 'lg' || size === 'xl'
 
   return (
     <dialog
@@ -66,20 +86,36 @@ export function Modal({ open, onClose, title, description, children, footer, siz
       className="group/modal m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-transparent p-0 backdrop:bg-transparent"
     >
       <div
-        onClick={(event) => event.target === event.currentTarget && onClose()}
-        className="flex h-full items-end justify-center bg-scrim opacity-0 transition-opacity duration-220 ease-standard group-data-[open=true]/modal:opacity-100 sm:items-center sm:p-6"
+        onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+        className={cn(
+          'flex h-full items-end justify-center bg-scrim sm:items-center sm:p-6',
+          'opacity-0 transition-opacity duration-180 ease-in',
+          'group-data-[open=true]/modal:opacity-100 group-data-[open=true]/modal:duration-280 group-data-[open=true]/modal:ease-standard',
+        )}
       >
-        <section
+        <Panel
+          onSubmit={onSubmit}
+          noValidate={onSubmit ? true : undefined}
           className={cn(
-            'flex max-h-[92dvh] w-full flex-col overlay rounded-b-none sm:max-h-[85dvh] sm:rounded-b-xl',
-            'translate-y-8 transition-[translate,scale,opacity] duration-340 ease-emphasized sm:translate-y-3 sm:scale-96',
-            'group-data-[open=true]/modal:translate-y-0 group-data-[open=true]/modal:scale-100',
+            'flex max-h-[92dvh] w-full flex-col overlay rounded-b-none sm:max-h-[min(88dvh,60rem)] sm:rounded-b-xl',
+            // Телефон: шторка выезжает снизу. Десктоп: поднимается на 12px и дорастает до 100%
+            'translate-y-full sm:translate-y-3 sm:scale-[0.97] sm:opacity-0',
+            'transition-[translate,scale,opacity] duration-180 ease-in',
+            'group-data-[open=true]/modal:translate-y-0 group-data-[open=true]/modal:scale-100 group-data-[open=true]/modal:opacity-100',
+            'group-data-[open=true]/modal:duration-280 group-data-[open=true]/modal:ease-emphasized',
             sizes[size],
           )}
         >
-          <header className="flex items-start gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
+          {/* Ручка шторки на телефоне — подсказка, что окно снизу и его можно закрыть */}
+          <span aria-hidden="true" className="mx-auto mt-2 h-1 w-10 rounded-full bg-line sm:hidden" />
+          <header
+            className={cn(
+              'flex items-start gap-4 px-5 pt-3 pb-4 sm:px-6 sm:pt-6',
+              roomy && 'border-b border-line-soft',
+            )}
+          >
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <h2 id={titleId} className="text-h3 font-medium text-ink">
+              <h2 id={titleId} className="text-h3 font-medium text-balance break-words text-ink">
                 {title}
               </h2>
               {description && (
@@ -93,22 +129,34 @@ export function Modal({ open, onClose, title, description, children, footer, siz
               icon={<IconClose />}
               size="sm"
               onClick={onClose}
-              className="-mt-1 -mr-1"
+              className="-mt-1 -mr-2"
             />
           </header>
           {children && (
             <PortalContext.Provider value={dialogEl}>
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 sm:px-6">{children}</div>
+              <div
+                className={cn(
+                  'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6',
+                  roomy ? 'py-6' : 'pb-1',
+                )}
+              >
+                {children}
+              </div>
             </PortalContext.Provider>
           )}
-          <footer className="flex flex-col-reverse gap-2 px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6 sm:pb-6">
+          <footer
+            className={cn(
+              'flex flex-col-reverse gap-2 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6 sm:pb-6',
+              roomy && 'border-t border-line-soft sm:pt-4 sm:pb-4',
+            )}
+          >
             {footer ?? (
               <Button variant="ghost" onClick={onClose}>
                 Закрыть
               </Button>
             )}
           </footer>
-        </section>
+        </Panel>
       </div>
     </dialog>
   )

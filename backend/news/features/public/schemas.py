@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 
 class ArticleOut(BaseModel):
@@ -18,11 +18,6 @@ class ArticleOut(BaseModel):
     hashtags: list[str]
     published_at: datetime | None
     views: int
-
-    @field_validator("hashtags", mode="before")
-    @classmethod
-    def names(cls, values: list[Any]) -> list[str]:
-        return [value if isinstance(value, str) else value.name for value in values]
 
 
 class ArticlePage(BaseModel):

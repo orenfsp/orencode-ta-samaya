@@ -28,3 +28,12 @@ export function useSetAcademicGroup() {
     onSuccess: (me) => client.setQueryData(sessionKeys.me, me),
   })
 }
+
+/** ФИО, дата рождения и группа аккаунта: общие для всех ролей. После сохранения обновляем /me на месте */
+export function useUpdateProfile() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: sessionApi.updateProfile,
+    onSuccess: (me) => client.setQueryData(sessionKeys.me, me),
+  })
+}

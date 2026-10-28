@@ -138,7 +138,7 @@ backend/
   requirements.txt
 infrastructure/               ORM, файлы подряд: base.py, enums.py, user.py, user_role.py, audit_log.py
 manage/                       управление проектом: Dockerfile, Dockerfile.dockerignore, entrypoint.sh, fsp.py (меню),
-                              bootstrap.py (пересоздание схемы + демо-данные), demo.py (демо-аккаунты)
+                              bootstrap.py (пересоздание схемы + демо-база), seed/seed.sql (демо-данные)
 docs/
 frontend/
 ```
@@ -182,9 +182,17 @@ async def login(
 | organizer.pending@example.test | organizer (p) | демо верификации |
 | athlete@example.test | athlete (v) | студент, 20 лет |
 | athlete.minor@example.test | athlete (v) | школьник, 14 лет |
-| athlete.second@example.test | athlete (v) | школьница, 17 лет, демо заявок |
-| athlete.third@example.test | athlete (v) | студент, демо команды тренера |
-| pupil1@example.test, pupil2@example.test, pupil3@example.test | athlete (v) | школьники 15–16 лет без заявок: тренер записывает их на Первенство пачкой |
+| athlete.second@example.test | athlete (v) | школьница, 17 лет |
+| athlete.third@example.test | athlete (v) | студент |
+| pupil1@example.test, pupil2@example.test, pupil3@example.test | athlete (v) | школьники 15–16 лет |
+| u14-1-4.1…4@example.test | athlete (v) | до 14 лет, 1–4 классы |
+| u14-5-9.1…4@example.test | athlete (v) | до 14 лет, 5–9 классы |
+| 14-17-5-9.1…4@example.test | athlete (v) | 14–17 лет, 5–9 классы |
+| 14-17-10-11.1…6@example.test | athlete (v) | 14–17 лет, 10–11 классы |
+| 14-17-stud.1…2@example.test | athlete (v) | 14–17 лет, студенты |
+| 18-stud.1…6@example.test | athlete (v) | 18 лет и старше, студенты |
+| 18-10-11.1@example.test | athlete (v) | 18 лет, 10–11 классы |
+| nogroup.1…2@example.test | athlete (v) | без академической группы: заявку не принять |
 | coach@example.test | coach (v) | верифицированный тренер, со значком |
 | coach.unverified@example.test | coach (p) | работает без значка, висит в очереди федерации |
 | judge@example.test | judge (v) | |
@@ -196,7 +204,7 @@ async def login(
 ## 8. Запуск
 
 - `python manage/fsp.py` — меню: 1) собрать / пересобрать, 2) запустить, 3) остановить.
-- `manage/Dockerfile`: `python:3.12-slim` + `postgresql` + `redis-server`; в образ копируются `backend/`, `infrastructure/` и `manage/bootstrap.py` + `manage/demo.py` в `/app`, `PYTHONPATH=/app`. Контекст сборки — корень репо (`-f manage/Dockerfile .`), игнор — `manage/Dockerfile.dockerignore`.
+- `manage/Dockerfile`: `python:3.12-slim` + `postgresql` + `redis-server`; в образ копируются `backend/`, `infrastructure/` и `manage/bootstrap.py` + `manage/seed/` в `/app`, `PYTHONPATH=/app`. Контекст сборки — корень репо (`-f manage/Dockerfile .`), игнор — `manage/Dockerfile.dockerignore`.
 - `manage/entrypoint.sh`: initdb → Postgres → БД → Redis → `python manage/bootstrap.py` → `uvicorn main:app`.
 - Swagger: `http://localhost:8000/docs`. Для не-GET запросов — кнопка Authorize, значение куки `csrf_token`.
 

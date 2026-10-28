@@ -28,6 +28,7 @@ PARTICIPANT_ROLES = frozenset({Role.ATHLETE, Role.COACH})
 
 
 async def participant(user: Annotated[CurrentUser, Depends(current_user)]) -> CurrentUser:
+    """Пропускает только пользователей с ролью спортсмена или тренера."""
     if not user.roles & PARTICIPANT_ROLES:
         raise Forbidden()
     return user
@@ -44,6 +45,7 @@ async def search_athletes(
     q: Annotated[str, Query(min_length=2, max_length=200)],
     contest_id: Annotated[int | None, Query()] = None,
 ) -> AthleteList:
+    """Ищет спортсменов по тексту для добавления в заявку, отмечая проблемы допуска."""
     users, problems = await applications.search_athletes(q, contest_id)
     return AthleteList(
         items=[
@@ -59,6 +61,7 @@ async def available_contests(
     applications: ApplicationsDep,
     as_: Annotated[ApplicationCreator | None, Query(alias="as")] = None,
 ) -> AvailableList:
+    """Возвращает соревнования, открытые для подачи заявки текущим пользователем."""
     role = as_ or (ApplicationCreator.ATHLETE if Role.ATHLETE in user.roles else ApplicationCreator.COACH)
     items = await applications.available(user.id, user.roles, role)
     return AvailableList(
@@ -75,6 +78,7 @@ async def my_applications(
     applications: ApplicationsDep,
     as_: Annotated[ApplicationCreator, Query(alias="as")] = ApplicationCreator.ATHLETE,
 ) -> ApplicationList:
+    """Возвращает заявки текущего пользователя как спортсмена или как тренера."""
     if Role(as_.value) not in user.roles:
         raise Forbidden()
     items = await applications.mine(user.id, as_)
@@ -89,6 +93,7 @@ async def create_application(
     ip: ClientIp,
     applications: ApplicationsDep,
 ) -> ApplicationOut:
+    """Создаёт новую заявку на соревнование."""
     item = await applications.create(
         user.id, user.roles, contest_id, body.as_, body.team_name, body.member_ids, body.captain_id, ip
     )
@@ -107,12 +112,14 @@ async def create_for_athletes(
     ip: ClientIp,
     applications: ApplicationsDep,
 ) -> ApplicationList:
+    """Тренер создаёт личные заявки сразу на нескольких указанных спортсменов."""
     items = await applications.create_for_athletes(user.id, user.roles, contest_id, body.member_ids, ip)
     return ApplicationList(items=[ApplicationOut.model_validate(item) for item in items])
 
 
 @router.get("/applications/{application_id}", summary="Заявка")
 async def get_application(application_id: ApplicationId, user: CurrentUserDep, applications: ApplicationsDep) -> ApplicationOut:
+    """Возвращает заявку по id, если у пользователя есть право её видеть."""
     return ApplicationOut.model_validate(await applications.get(user.id, user.roles, application_id))
 
 
@@ -124,6 +131,7 @@ async def rename_application(
     ip: ClientIp,
     applications: ApplicationsDep,
 ) -> ApplicationOut:
+    """Переименовывает команду в заявке."""
     return ApplicationOut.model_validate(await applications.rename(user.id, application_id, body.team_name, ip))
 
 
@@ -135,6 +143,7 @@ async def add_member(
     ip: ClientIp,
     applications: ApplicationsDep,
 ) -> ApplicationOut:
+    """Приглашает спортсмена в состав командной заявки."""
     return ApplicationOut.model_validate(await applications.add_member(user.id, application_id, body.user_id, ip))
 
 
@@ -146,6 +155,7 @@ async def remove_member(
     ip: ClientIp,
     applications: ApplicationsDep,
 ) -> ApplicationOut:
+    """Убирает участника из командной заявки."""
     return ApplicationOut.model_validate(await applications.remove_member(user.id, application_id, user_id, ip))
 
 
@@ -153,6 +163,7 @@ async def remove_member(
 async def submit_application(
     application_id: ApplicationId, user: Participant, ip: ClientIp, applications: ApplicationsDep
 ) -> ApplicationOut:
+    """Подаёт заявку на модерацию."""
     return ApplicationOut.model_validate(await applications.submit(user.id, application_id, ip))
 
 
@@ -160,6 +171,7 @@ async def submit_application(
 async def withdraw_application(
     application_id: ApplicationId, user: Participant, ip: ClientIp, applications: ApplicationsDep
 ) -> ApplicationOut:
+    """Отзывает заявку целиком."""
     return ApplicationOut.model_validate(await applications.withdraw(user.id, application_id, ip))
 
 
@@ -167,6 +179,7 @@ async def withdraw_application(
 async def confirm_application(
     application_id: ApplicationId, user: CurrentUserDep, ip: ClientIp, applications: ApplicationsDep
 ) -> ApplicationOut:
+    """Подтверждает участие в заявке."""
     return ApplicationOut.model_validate(await applications.confirm(user.id, application_id, ip))
 
 
@@ -174,4 +187,5 @@ async def confirm_application(
 async def decline_application(
     application_id: ApplicationId, user: CurrentUserDep, ip: ClientIp, applications: ApplicationsDep
 ) -> ApplicationOut:
+    """Отказывается от участия в заявке."""
     return ApplicationOut.model_validate(await applications.decline(user.id, application_id, ip))

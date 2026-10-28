@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
-import { useParams } from 'react-router'
+import { useState, type ReactNode } from 'react'
+import { Link, useParams } from 'react-router'
+import type { ApplicationRole } from '@/entities/application'
 import {
   competitionDates,
   competitionPlace,
@@ -9,8 +10,18 @@ import {
   statusTone,
   teamSize,
   useCompetition,
+  type Competition,
 } from '@/entities/competition'
+import { useMe } from '@/entities/session'
+import {
+  ContestApplicationsModal,
+  isInvited,
+  useApplicationActions,
+  useContestEntries,
+} from '@/features/application-manage'
+import { ModerationModal } from '@/features/application-moderate'
 import { DocumentRow } from '@/features/competition-manage'
+import { JudgeDocumentsSection } from '@/features/judge-documents'
 import { ApiError } from '@/shared/api'
 import { routes } from '@/shared/config'
 import { formatNumber } from '@/shared/lib'
@@ -36,6 +47,102 @@ import {
   THead,
   TR,
 } from '@/shared/ui'
+import { DocumentsSection } from './documents-section'
+import { ResultsSection } from './results-section'
+
+/** Запись и заявки спортсмена или тренера — то же окно, что в кабинете */
+function ParticipantAction({
+  contestId,
+  role,
+  userId,
+}: {
+  contestId: number
+  role: ApplicationRole
+  userId: string
+}) {
+  const entries = useContestEntries(role, userId)
+  const actions = useApplicationActions()
+  const [modal, setModal] = useState({ open: false, key: 0 })
+  const entry = entries.data.find((item) => item.contest.id === contestId)
+  if (!entry) return null
+  const coach = role === 'coach'
+  const count = entry.applications.length
+  const invited = entry.applications.some((item) => isInvited(item, userId))
+  return (
+    <>
+      <Button
+        variant={count && !invited ? 'secondary' : 'primary'}
+        onClick={() => setModal((state) => ({ open: true, key: state.key + 1 }))}
+      >
+        {invited
+          ? 'Ответить на приглашение'
+          : count
+            ? coach
+              ? `Заявки подопечных · ${count}`
+              : 'Моя заявка'
+            : coach
+              ? 'Записать спортсменов'
+              : 'Записаться'}
+      </Button>
+      <ContestApplicationsModal
+        key={modal.key}
+        entry={entry}
+        role={role}
+        actions={actions}
+        open={modal.open}
+        onClose={() => setModal((state) => ({ ...state, open: false }))}
+      />
+    </>
+  )
+}
+
+/** Кнопки заявок по ролям человека: записаться, записать подопечных, рассмотреть заявки */
+function ApplicationActions({ item }: { item: Competition }) {
+  const { data: me } = useMe()
+  const [moderating, setModerating] = useState({ open: false, key: 0 })
+  if (!me) return null
+  const roles = me.available_roles
+  const scope = roles.includes('federation')
+    ? 'admin'
+    : roles.includes('organizer') && item.organizer.id === me.id
+      ? 'organizer'
+      : null
+  const participant = (['athlete', 'coach'] as const).filter((role) => roles.includes(role))
+  if (!scope && !participant.length) return null
+  return (
+    <div className="flex flex-col gap-2 border-t border-line-soft pt-5 [&>*]:w-full">
+      {participant.map((role) => (
+        <ParticipantAction key={role} contestId={item.id} role={role} userId={me.id} />
+      ))}
+      {scope && item.status !== 'draft' && (
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => setModerating((state) => ({ open: true, key: state.key + 1 }))}
+          >
+            Заявки участников
+          </Button>
+          <ModerationModal
+            key={moderating.key}
+            scope={scope}
+            contest={item}
+            open={moderating.open}
+            onClose={() => setModerating((state) => ({ ...state, open: false }))}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Кто управляет соревнованием: федерация — любым, организатор — своим */
+function useManageScope(item: Competition | undefined) {
+  const { data: me } = useMe()
+  if (!me || !item) return null
+  if (me.available_roles.includes('federation')) return 'admin' as const
+  if (me.available_roles.includes('organizer') && item.organizer.id === me.id) return 'organizer' as const
+  return null
+}
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -50,6 +157,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 export function CompetitionPage() {
   const { id = '' } = useParams()
   const competition = useCompetition(Number(id))
+  const scope = useManageScope(competition.data)
 
   if (competition.isPending && Number(id) > 0)
     return (
@@ -196,10 +304,24 @@ export function CompetitionPage() {
                 </span>
               </Fact>
             )}
-            <Fact label="Организатор">{item.organizer.full_name}</Fact>
+            <Fact label="Организатор">
+              <Link
+                to={routes.person(item.organizer.id)}
+                className="rounded-sm link-underline focus-visible:field-focus"
+              >
+                {item.organizer.full_name}
+              </Link>
+            </Fact>
           </dl>
+          <ApplicationActions item={item} />
         </Card>
       </div>
+
+      <ResultsSection item={item} scope={scope} />
+
+      <JudgeDocumentsSection contest={item} />
+
+      <DocumentsSection item={item} scope={scope} />
 
       <div>
         <Button to={routes.competitions} variant="secondary">

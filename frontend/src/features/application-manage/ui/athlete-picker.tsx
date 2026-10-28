@@ -1,3 +1,4 @@
+import { personAvatar } from '@/entities/person'
 import { useState } from 'react'
 import { personName, useAthleteSearch, type AthleteFound } from '@/entities/application'
 import { formatDate } from '@/shared/lib'
@@ -61,6 +62,7 @@ export function AthletePicker({
               <li key={athlete.id} className="rounded-md border border-line-soft px-3 py-2.5">
                 <PersonLine
                   name={personName(athlete)}
+                  avatar={personAvatar(athlete.id)}
                   meta={[formatDate(athlete.birth_date), athlete.academic_group?.name]
                     .filter(Boolean)
                     .join(' · ')}

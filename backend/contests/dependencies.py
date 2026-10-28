@@ -6,11 +6,11 @@ from audit.dependencies import get_audit
 from audit.domain.audit import Audit
 from auth.repositories.pg_users import UserRepository
 from contests.domain.contests import Contest
-from contests.repositories.pg_contest_history import ContestHistoryRepository
 from contests.repositories.pg_contests import ContestRepository
 from core.database import DbSession, UnitOfWork
 from dictionaries.dependencies import DictionaryDep
 from files.dependencies import FilesDep
+from notifications.dependencies import NotificationsDep
 
 
 def get_contest(
@@ -18,15 +18,17 @@ def get_contest(
     dictionary: DictionaryDep,
     files: FilesDep,
     audit: Annotated[Audit, Depends(get_audit)],
+    notifications: NotificationsDep,
 ) -> Contest:
+    """Собирает домен соревнований со всеми его зависимостями."""
     return Contest(
         uow=UnitOfWork(db),
         contests=ContestRepository(db),
-        history=ContestHistoryRepository(db),
         users=UserRepository(db),
         dictionary=dictionary,
         files=files,
         audit=audit,
+        notifications=notifications,
     )
 
 

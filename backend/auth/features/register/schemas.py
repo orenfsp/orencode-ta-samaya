@@ -26,6 +26,7 @@ class RegisterIn(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: str) -> str:
+        """Нормализует и проверяет корректность email."""
         value = value.strip()
         if len(value) > 255:
             raise ValueError("Email слишком длинный")
@@ -37,6 +38,7 @@ class RegisterIn(BaseModel):
     @field_validator("password")
     @classmethod
     def check_password(cls, value: str) -> str:
+        """Проверяет пароль на соответствие требованиям политики."""
         problems = PasswordPolicy.violations(value)
         if problems:
             raise ValueError("\n".join(problems))
@@ -45,6 +47,7 @@ class RegisterIn(BaseModel):
     @field_validator("password_repeat")
     @classmethod
     def check_repeat(cls, value: str, info: ValidationInfo) -> str:
+        """Проверяет, что повтор пароля совпадает с паролем."""
         if "password" in info.data and value != info.data["password"]:
             raise ValueError("Пароли не совпадают")
         return value
@@ -52,6 +55,7 @@ class RegisterIn(BaseModel):
     @field_validator("middle_name", mode="before")
     @classmethod
     def empty_middle_name(cls, value: str | None) -> str | None:
+        """Превращает пустое отчество в None."""
         if isinstance(value, str) and not value.strip():
             return None
         return value
@@ -59,6 +63,7 @@ class RegisterIn(BaseModel):
     @field_validator("birth_date")
     @classmethod
     def check_birth_date(cls, value: date) -> date:
+        """Проверяет, что дата рождения не в будущем и не раньше 1900 года."""
         if value > date.today():
             raise ValueError("Дата рождения в будущем")
         if value < date(1900, 1, 1):
@@ -68,6 +73,7 @@ class RegisterIn(BaseModel):
     @field_validator("roles")
     @classmethod
     def check_roles(cls, value: list[Role]) -> list[Role]:
+        """Проверяет, что роли не пусты, не повторяются и доступны для самостоятельной регистрации."""
         if not value:
             raise ValueError("Выберите хотя бы одну роль")
         if len(set(value)) != len(value):
@@ -79,6 +85,7 @@ class RegisterIn(BaseModel):
     @field_validator("pd_consent")
     @classmethod
     def check_consent(cls, value: bool) -> bool:
+        """Проверяет, что согласие на обработку персональных данных дано."""
         if not value:
             raise ValueError("Необходимо согласие на обработку персональных данных")
         return value

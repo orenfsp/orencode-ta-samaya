@@ -1,8 +1,10 @@
 export { sessionApi } from './api/session-api'
-export { fullName, hasCabinetAccess, roleLabels, roleStatusLabels } from './lib/roles'
+export { codeforcesRanks, fullName, hasCabinetAccess, roleLabels, roleStatusLabels } from './lib/roles'
 export type {
+  CodeforcesInfo,
   LoginInput,
   Me,
+  ProfileInput,
   RegisterInput,
   ResetPasswordInput,
   Role,
@@ -11,4 +13,4 @@ export type {
   User,
   UserRole,
 } from './model/types'
-export { sessionKeys, useLogout, useMe, useSetAcademicGroup } from './model/use-session'
+export { sessionKeys, useLogout, useMe, useSetAcademicGroup, useUpdateProfile } from './model/use-session'

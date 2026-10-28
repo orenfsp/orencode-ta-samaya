@@ -94,6 +94,22 @@ export const IconUser = createIcon(
     <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
   </>,
 )
+export const IconSettings = createIcon(
+  'Settings',
+  <>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+  </>,
+)
+/** Сообщение в мессенджер: Telegram без логотипа бренда */
+export const IconSend = createIcon('Send', <path d="M21 3 10 14M21 3l-7 18-4-7-7-4z" />)
+export const IconMail = createIcon(
+  'Mail',
+  <>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m4 7 8 6 8-6" />
+  </>,
+)
 export const IconLogOut = createIcon(
   'LogOut',
   <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h10" />,
@@ -127,6 +143,11 @@ export const IconInbox = createIcon(
   </>,
 )
 export const IconRefresh = createIcon('Refresh', <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" />)
+/** История действий: часы со стрелкой назад — журнал */
+export const IconHistory = createIcon(
+  'History',
+  <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4M12 8v4l2.5 2.5" />,
+)
 export const IconGrid = createIcon(
   'Grid',
   <>
@@ -171,6 +192,8 @@ export const IconTrophy = createIcon(
     <path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4" />
   </>,
 )
+export const IconPodium = createIcon('Podium', <path d="M9 20V8h6v12M3 20v-8h6M15 20v-5h6v5M3 20h18" />)
+export const IconChart = createIcon('Chart', <path d="M4 4v16h16M8 16v-4M12 16V8M16 16v-6" />)
 export const IconImage = createIcon(
   'Image',
   <>
@@ -193,6 +216,14 @@ export const IconShieldCheck = createIcon(
   <>
     <path d="M12 3 5 6v5.5c0 4.2 2.9 7.7 7 9.5 4.1-1.8 7-5.3 7-9.5V6z" />
     <path d="m9 12 2.2 2.2L15.5 10" />
+  </>,
+)
+/** Щит с крестом — в верификации отказано */
+export const IconShieldX = createIcon(
+  'ShieldX',
+  <>
+    <path d="M12 3 5 6v5.5c0 4.2 2.9 7.7 7 9.5 4.1-1.8 7-5.3 7-9.5V6z" />
+    <path d="m9.5 9.5 5 5M14.5 9.5l-5 5" />
   </>,
 )
 

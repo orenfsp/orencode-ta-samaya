@@ -14,7 +14,7 @@ import {
   Button,
   Card,
   DateInput,
-  Drawer,
+  Modal,
   EmptyState,
   ErrorState,
   Field,
@@ -143,7 +143,6 @@ function FiltersPanel({ value, update }: { value: (key: string) => string; updat
 /** Публичный каталог: фильтры живут в адресе, «Показать ещё» добирает следующую порцию */
 export function CompetitionsPage() {
   const [params, setParams] = useSearchParams()
-  const [limit, setLimit] = useState(STEP)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const period = params.get('period') === 'past' ? 'past' : 'upcoming'
   const value = (key: string) => params.get(key) ?? ''
@@ -159,12 +158,11 @@ export function CompetitionsPage() {
       CompetitionSort | undefined,
     ...Object.fromEntries(selects.map(({ key }) => [key, value(key) || undefined])),
   }
-  const competitions = useCompetitions(filters, limit)
+  const competitions = useCompetitions(filters, STEP)
   const activeCount = FILTER_KEYS.filter((key) => params.get(key)).length
   const filtered = activeCount > 0 || Boolean(value('search'))
 
   const update = (values: Record<string, string>, replace = false) => {
-    setLimit(STEP)
     setParams(
       (current) => {
         const next = new URLSearchParams(current)
@@ -175,7 +173,6 @@ export function CompetitionsPage() {
     )
   }
   const reset = () => {
-    setLimit(STEP)
     setParams(
       Object.fromEntries(
         [
@@ -275,7 +272,7 @@ export function CompetitionsPage() {
             )}
           </div>
           {competitions.isPending ? (
-            <div className="grid gap-5 min-[1920px]:grid-cols-4 sm:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid gap-5 md:grid-cols-2">
               {[1, 2, 3].map((id) => (
                 <Skeleton key={id} className="h-96 rounded-lg" />
               ))}
@@ -314,7 +311,7 @@ export function CompetitionsPage() {
             </Card>
           ) : (
             <>
-              <ul className="grid gap-5 min-[1920px]:grid-cols-4 sm:grid-cols-2 2xl:grid-cols-3">
+              <ul className="grid gap-5 md:grid-cols-2">
                 {items.map((competition) => (
                   <li key={competition.id}>
                     <CompetitionCard competition={competition} />
@@ -325,8 +322,8 @@ export function CompetitionsPage() {
                 <div className="flex flex-col items-center gap-2">
                   <Button
                     variant="secondary"
-                    loading={competitions.isFetching}
-                    onClick={() => setLimit((current) => current + STEP)}
+                    loading={competitions.isFetchingNextPage}
+                    onClick={() => void competitions.fetchNextPage()}
                   >
                     Показать ещё
                   </Button>
@@ -340,7 +337,8 @@ export function CompetitionsPage() {
         </section>
       </div>
 
-      <Drawer
+      <Modal
+        size="md"
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
         title="Фильтры"
@@ -355,7 +353,7 @@ export function CompetitionsPage() {
         }
       >
         <FiltersPanel value={value} update={update} />
-      </Drawer>
+      </Modal>
     </div>
   )
 }

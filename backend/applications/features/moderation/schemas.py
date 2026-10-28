@@ -56,11 +56,13 @@ class ContestRowOut(BaseModel):
     @computed_field
     @property
     def status_title(self) -> str:
+        """Возвращает человекочитаемое название статуса соревнования."""
         return CONTEST_STATUS_TITLES[self.status]
 
     @computed_field
     @property
     def participation_type_title(self) -> str:
+        """Возвращает человекочитаемое название типа участия."""
         return PARTICIPATION_TYPE_TITLES[self.participation_type]
 
 
@@ -87,6 +89,7 @@ class MemberOut(BaseModel):
     @computed_field
     @property
     def confirmation_title(self) -> str:
+        """Возвращает человекочитаемое название статуса подтверждения участника."""
         return MEMBER_CONFIRMATION_TITLES[self.confirmation]
 
 
@@ -109,6 +112,7 @@ class ApplicationOut(BaseModel):
     @computed_field
     @property
     def status_title(self) -> str:
+        """Возвращает человекочитаемое название статуса заявки."""
         return APPLICATION_STATUS_TITLES[self.status]
 
 

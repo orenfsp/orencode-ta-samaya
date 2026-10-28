@@ -10,6 +10,9 @@ from fastapi.security import APIKeyHeader
 from audit.dependencies import get_audit
 from audit.domain.audit import Audit
 from auth.domain.accounts import Account
+from auth.domain.codes import Codes
+from auth.repositories.pg_login_devices import LoginDeviceRepository
+from auth.repositories.red_codes import CodeRepository
 from auth.domain.password import password_hasher
 from auth.domain.roles import Roles
 from auth.domain.sessions import Sessions
@@ -24,6 +27,7 @@ from core.database import DbSession, UnitOfWork
 from core.errors import CsrfFailed, Forbidden, Unauthorized
 from core.redis import RedisClient
 from infrastructure.enums import Role
+from notifications.dependencies import NotificationsDep
 
 @dataclass(frozen=True, slots=True)
 class CurrentUser:
@@ -46,6 +50,7 @@ csrf_header = APIKeyHeader(
 
 
 def get_sessions(redis: RedisClient) -> Sessions:
+    """Собирает домен сессий поверх Redis-репозитория."""
     return Sessions(SessionRepository(redis, settings.session_ttl_seconds))
 
 
@@ -58,7 +63,9 @@ def get_account(
     redis: RedisClient,
     sessions: SessionsDep,
     audit: AuditDep,
+    notifications: NotificationsDep,
 ) -> Account:
+    """Собирает домен учётных записей со всеми его репозиториями."""
     return Account(
         uow=UnitOfWork(db),
         users=UserRepository(db),
@@ -69,20 +76,26 @@ def get_account(
         audit=audit,
         hasher=password_hasher,
         settings=settings,
+        notifications=notifications,
+        codes=Codes(CodeRepository(redis), settings),
+        devices=LoginDeviceRepository(db),
     )
 
 
-def get_roles(db: DbSession, sessions: SessionsDep, audit: AuditDep) -> Roles:
+def get_roles(db: DbSession, sessions: SessionsDep, audit: AuditDep, notifications: NotificationsDep) -> Roles:
+    """Собирает домен ролей со всеми его репозиториями."""
     return Roles(
         uow=UnitOfWork(db),
         users=UserRepository(db),
         user_roles=UserRoleRepository(db),
         sessions=sessions,
         audit=audit,
+        notifications=notifications,
     )
 
 
 def set_auth_cookies(response: Response, session: SessionData) -> None:
+    """Выставляет куки сессии и CSRF-токена в ответ."""
     common = {
         "max_age": settings.session_ttl_seconds,
         "samesite": "lax",
@@ -94,6 +107,7 @@ def set_auth_cookies(response: Response, session: SessionData) -> None:
 
 
 def clear_auth_cookies(response: Response) -> None:
+    """Удаляет куки сессии и CSRF-токена из ответа."""
     response.delete_cookie(SID_COOKIE, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")
 
@@ -104,6 +118,7 @@ async def optional_current_user(
     sessions: SessionsDep,
     csrf: Annotated[str | None, Security(csrf_header)],
 ) -> CurrentUser | None:
+    """Достаёт пользователя из сессии по куке, проверяет CSRF и обновляет куки; None, если сессии нет."""
     session = await sessions.resolve(request.cookies.get(SID_COOKIE))
     if session is None:
         return None
@@ -114,13 +129,17 @@ async def optional_current_user(
 
 
 async def current_user(user: Annotated[CurrentUser | None, Depends(optional_current_user)]) -> CurrentUser:
+    """Требует авторизованного пользователя; иначе поднимает Unauthorized."""
     if user is None:
         raise Unauthorized()
     return user
 
 
 def require_role(role: Role) -> Callable[..., Awaitable[CurrentUser]]:
+    """Строит зависимость, требующую у пользователя указанную роль."""
+
     async def dependency(user: Annotated[CurrentUser, Depends(current_user)]) -> CurrentUser:
+        """Проверяет, что у пользователя есть нужная роль; иначе поднимает Forbidden."""
         if role not in user.roles:
             raise Forbidden()
         return user

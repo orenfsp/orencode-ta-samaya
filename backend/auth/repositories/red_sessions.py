@@ -21,14 +21,17 @@ class SessionData:
 
 
 def _session_key(sid: str) -> str:
+    """Строит ключ Redis для сессии по sid."""
     return f"session:{sid}"
 
 
 def _user_key(user_id: UUID) -> str:
+    """Строит ключ Redis для набора sid сессий пользователя."""
     return f"user_sessions:{user_id}"
 
 
 def _dump(session: SessionData) -> str:
+    """Сериализует сессию в JSON для хранения в Redis."""
     return json.dumps(
         {
             "user_id": str(session.user_id),
@@ -41,6 +44,7 @@ def _dump(session: SessionData) -> str:
 
 
 def _load(sid: str, raw: str) -> SessionData:
+    """Восстанавливает сессию из JSON, сохранённого в Redis."""
     data = json.loads(raw)
     return SessionData(
         sid=sid,
@@ -54,13 +58,16 @@ def _load(sid: str, raw: str) -> SessionData:
 
 class SessionRepository:
     def __init__(self, redis: Redis, ttl_seconds: int) -> None:
+        """Сохраняет зависимости."""
         self._redis = redis
         self._ttl = ttl_seconds
 
     async def _members(self, user_id: UUID) -> set[str]:
+        """Возвращает sid всех сессий пользователя."""
         return await cast(Awaitable[set[str]], self._redis.smembers(_user_key(user_id)))
 
     async def save(self, session: SessionData) -> None:
+        """Сохраняет сессию и добавляет её sid в набор сессий пользователя."""
         async with self._redis.pipeline(transaction=True) as pipe:
             pipe.set(_session_key(session.sid), _dump(session), ex=self._ttl)
             pipe.sadd(_user_key(session.user_id), session.sid)
@@ -68,22 +75,26 @@ class SessionRepository:
             await pipe.execute()
 
     async def get(self, sid: str) -> SessionData | None:
+        """Возвращает сессию по sid; None, если её нет."""
         raw = await self._redis.get(_session_key(sid))
         return _load(sid, raw) if raw else None
 
     async def touch(self, session: SessionData) -> None:
+        """Продлевает срок жизни сессии и набора сессий пользователя."""
         async with self._redis.pipeline(transaction=True) as pipe:
             pipe.expire(_session_key(session.sid), self._ttl)
             pipe.expire(_user_key(session.user_id), self._ttl)
             await pipe.execute()
 
     async def delete(self, sid: str, user_id: UUID) -> None:
+        """Удаляет сессию и убирает её sid из набора сессий пользователя."""
         async with self._redis.pipeline(transaction=True) as pipe:
             pipe.delete(_session_key(sid))
             pipe.srem(_user_key(user_id), sid)
             await pipe.execute()
 
     async def delete_all(self, user_id: UUID) -> None:
+        """Удаляет все сессии пользователя."""
         sids = await self._members(user_id)
         async with self._redis.pipeline(transaction=True) as pipe:
             for sid in sids:
@@ -92,6 +103,7 @@ class SessionRepository:
             await pipe.execute()
 
     async def set_roles(self, user_id: UUID, roles: frozenset[Role]) -> None:
+        """Обновляет набор ролей во всех сессиях пользователя, убирая из набора ссылки на уже истёкшие."""
         for sid in await self._members(user_id):
             current = await self.get(sid)
             if current is None:

@@ -16,7 +16,7 @@ export interface RosterMember {
 /**
  * Состав команды по слотам: занятые места — люди, свободные до минимума — пунктир «нужен ещё»,
  * сверх минимума до максимума — тихое «можно добавить». Сразу видно, хватает ли людей для заявки.
- * Кого добавить, выбирает родитель (SearchSelect в Popover/Drawer) по onAdd.
+ * Кого добавить, выбирает родитель (SearchSelect в Popover или Modal) по onAdd.
  */
 export function RosterSlots({
   members,

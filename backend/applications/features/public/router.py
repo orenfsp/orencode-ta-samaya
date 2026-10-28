@@ -10,6 +10,7 @@ router = APIRouter(tags=["Заявки: публично"])
 
 @router.get("/contests/{contest_id}/participants", summary="Участники соревнования")
 async def participants(contest_id: Annotated[int, Path()], applications: ApplicationsDep) -> ParticipantList:
+    """Возвращает список участников и команд, допущенных на соревнование."""
     items = await applications.participants(contest_id)
     entries = [
         EntryOut(

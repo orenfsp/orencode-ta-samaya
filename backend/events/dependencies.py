@@ -10,6 +10,7 @@ from events.repositories.pg_calendar import CalendarRepository
 
 
 def get_calendar(db: DbSession, contests: ContestDep, audit: AuditDep) -> Calendar:
+    """Собирает домен календаря событий для FastAPI Depends."""
     return Calendar(CalendarRepository(db), contests, UnitOfWork(db), audit)
 
 

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Отчёт ФСП</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 18mm 16mm 18mm 16mm;
+    @bottom-left { content: "ФСП Оренбургской области · {{ name }}"; font-family: "Roboto", sans-serif; font-size: 8pt; color: #5B5C62; }
+    @bottom-right { content: counter(page) " / " counter(pages); font-family: "JetBrains Mono", monospace; font-size: 8pt; color: #5B5C62; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: "Roboto", sans-serif; color: #1B1C21; font-size: 10pt; }
+
+  .head { position: relative; height: 26mm; border-bottom: 0.3mm solid #C8C9CA; margin-bottom: 8mm; }
+  .logo { position: absolute; left: 0; top: 0; height: 10mm; }
+  .org { position: absolute; left: 0; top: 13mm; width: 120mm; font-size: 8.5pt; color: #5B5C62; line-height: 1.4; }
+  .mark { position: absolute; right: 0; top: 0; height: 18mm; opacity: 0.12; }
+
+  .kind { font-family: "JetBrains Mono", monospace; font-size: 9pt; color: #5B5C62; }
+  h1 { margin-top: 1.5mm; font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 20pt; line-height: 1.15; }
+
+  .facts { margin-top: 6mm; width: 100%; border-collapse: collapse; }
+  .facts td { padding: 1.6mm 0; border-bottom: 0.3mm solid #EDEDED; vertical-align: top; }
+  .facts td.label { width: 42mm; color: #5B5C62; }
+  .facts td.value { font-weight: 500; }
+
+  .summary { margin-top: 6mm; display: flex; gap: 4mm; }
+  .tile { flex: 1; border: 0.3mm solid #C8C9CA; border-radius: 2mm; padding: 3mm 4mm; }
+  .tile .num { font-family: "JetBrains Mono", monospace; font-size: 16pt; font-weight: 500; }
+  .tile .cap { margin-top: 0.5mm; font-size: 8.5pt; color: #5B5C62; }
+
+  h2 { margin-top: 9mm; font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 13pt; page-break-after: avoid; }
+  table.data { margin-top: 3mm; width: 100%; border-collapse: collapse; font-size: 9pt; }
+  table.data th { text-align: left; font-weight: 500; color: #5B5C62; padding: 1.8mm 2mm; border-bottom: 0.4mm solid #1B1C21; }
+  table.data td { padding: 1.8mm 2mm; border-bottom: 0.3mm solid #EDEDED; vertical-align: top; }
+  table.data tr { page-break-inside: avoid; }
+  table.data td.num { font-family: "JetBrains Mono", monospace; white-space: nowrap; }
+  .empty { margin-top: 2.5mm; color: #5B5C62; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <img class="logo" src="fsp-logo.svg" alt="ФСП">
+    <div class="org">Региональное отделение Федерации спортивного программирования Оренбургской области</div>
+    <img class="mark" src="fsp-mark-light.svg" alt="">
+  </div>
+
+  <div class="kind">Отчёт по человеку</div>
+  <h1>{{ name }}</h1>
+
+  <table class="facts">
+    {% for label, value in facts %}<tr><td class="label">{{ label }}</td><td class="value">{{ value }}</td></tr>{% endfor %}
+  </table>
+
+  <div class="summary">
+    {% for value, caption in summary %}<div class="tile"><div class="num">{{ value }}</div><div class="cap">{{ caption }}</div></div>{% endfor %}
+  </div>
+
+  {% for section in sections %}
+  <h2>{{ section.title }}</h2>
+  {% if section.rows %}
+  <table class="data">
+    <tr>{% for header in section.headers %}<th>{{ header }}</th>{% endfor %}</tr>
+    {% for row in section.rows %}
+    <tr>{% for cell in row %}<td{% if cell is number %} class="num"{% endif %}>{{ cell }}</td>{% endfor %}</tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">{{ section.empty }}</div>
+  {% endif %}
+  {% endfor %}
+</body>
+</html>

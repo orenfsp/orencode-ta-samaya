@@ -24,7 +24,21 @@ export interface User {
   roles: UserRole[]
 }
 
+/** Codeforces — справочно: на рейтинг ФСП не влияет. Рейтинг обновляется раз в час */
+export interface CodeforcesInfo {
+  handle: string
+  url: string
+  rating: number | null
+  max_rating: number | null
+  rank: string | null
+  status: 'pending' | 'ok' | 'not_found'
+  updated_at: string | null
+}
+
 export interface Me extends User {
+  codeforces: CodeforcesInfo | null
+  /** Почта подтверждена кодом: только на неё уходят письма о решениях */
+  email_verified: boolean
   /** Класс или «Студенты»: без неё не подать заявку на соревнование */
   academic_group: { id: number; name: string } | null
   /** Роли, кабинеты которых открыты прямо сейчас */
@@ -52,4 +66,13 @@ export interface ResetPasswordInput {
   token: string
   password: string
   password_repeat: string
+}
+
+/** Данные аккаунта — общие для всех ролей. Поля, которых нет, не меняются */
+export interface ProfileInput {
+  last_name?: string
+  first_name?: string
+  middle_name?: string | null
+  birth_date?: string
+  academic_group_id?: number | null
 }

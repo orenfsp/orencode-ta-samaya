@@ -42,6 +42,7 @@ class FileOut(BaseModel):
     @computed_field
     @property
     def url(self) -> str:
+        """Возвращает публичную ссылку на файл в S3 или путь к приватной раздаче через API."""
         if self.is_public:
             return f"{settings.s3_public_url}/{settings.s3_public_bucket}/{quote(self.object_key)}"
         return f"/api/v1/files/{self.id}"
@@ -75,16 +76,19 @@ class ContestBriefOut(BaseModel):
     @computed_field
     @property
     def status_title(self) -> str:
+        """Возвращает человекочитаемое название статуса соревнования."""
         return CONTEST_STATUS_TITLES[self.status]
 
     @computed_field
     @property
     def participation_type_title(self) -> str:
+        """Возвращает человекочитаемое название типа участия."""
         return PARTICIPATION_TYPE_TITLES[self.participation_type]
 
     @computed_field
     @property
     def is_verified(self) -> bool:
+        """Проверяет, что соревнование прошло верификацию."""
         return self.verification_status == VerificationStatus.VERIFIED
 
 
@@ -113,6 +117,7 @@ class MemberOut(BaseModel):
     @computed_field
     @property
     def confirmation_title(self) -> str:
+        """Возвращает человекочитаемое название статуса подтверждения участника."""
         return MEMBER_CONFIRMATION_TITLES[self.confirmation]
 
 
@@ -143,6 +148,7 @@ class ApplicationOut(BaseModel):
     @computed_field
     @property
     def status_title(self) -> str:
+        """Возвращает человекочитаемое название статуса заявки."""
         return APPLICATION_STATUS_TITLES[self.status]
 
 

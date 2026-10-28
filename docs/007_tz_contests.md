@@ -39,7 +39,7 @@
 
 ## Модели
 
-### `infrastructure/contest.py` — `ContestModel`, таблица `contests`
+### `infrastructure/contests/contest.py` — `ContestModel`, таблица `contests`
 
 **Основное (заполняет организатор или федерация):**
 
@@ -92,7 +92,6 @@
 - `contest_academic_group.py` — `ContestAcademicGroupModel`: `contest_id`, `academic_group_id` (FK `dictionary_academic_groups`, RESTRICT).
   Пустой список = без ограничений.
 - `contest_photo.py` — `ContestPhotoModel`: `contest_id`, `file_id` (FK `files`), `position`. До 10 фото, без отдельной обложки — в ленте карточек они листаются по кругу галереей. (После влития файлов.)
-- `contest_status_history.py` — `ContestStatusHistoryModel`: `id`, `contest_id`, `kind` (`status` / `verification`), `from_value`, `to_value`, `user_id`, `comment`, `created_at`. Одна история и для жизненного цикла, и для верификации.
 
 ### Перечисления в `infrastructure/enums.py`
 
@@ -133,7 +132,7 @@
 | `draft`, `published`, `registration_open`, `registration_closed` | `cancelled` | отменить, причина обязательна; → уведомление участникам (позже) |
 | `completed`, `cancelled` | `archived` | в архив |
 
-Неверный переход → 409 `invalid_status`. Каждый переход: блокировка строки, история, аудит в одной транзакции.
+Неверный переход → 409 `invalid_status`. Каждый переход: блокировка строки и запись в журнал действий в одной транзакции.
 
 ### Правка и удаление
 - **Правка** — организатор (своё) и федерация (любое) в любом статусе, кроме `archived`.
@@ -160,7 +159,7 @@
 | Региональное | 40 | 30 | 20 |
 
   Таблица — в домене как значения по умолчанию; федерация может задать любое число мест и любые баллы.
-- **Правка после верификации.** Описание, фото, призовой фонд, положение, площадка, даты регистрации — верификацию не снимают. Дисциплина, уровень, личное / командное, размер команды, возрастные и академические группы, даты проведения — возвращают верификацию в `pending` (запись в истории «изменены поля, влияющие на рейтинг»).
+- **Правка после верификации.** Описание, фото, призовой фонд, положение, площадка, даты регистрации — верификацию не снимают. Дисциплина, уровень, личное / командное, размер команды, возрастные и академические группы, даты проведения — возвращают верификацию в `pending` (запись в журнале действий «изменены поля, влияющие на рейтинг»).
 - Организатор не может передать `verification_*` и `rating_points` в теле — их нет в его схемах; в ответе они есть.
 
 ---
@@ -196,20 +195,19 @@
 
 ### Репозитории
 - `repositories/pg_contests.py` — `ContestRepository`: `get`, `lock`, `list(filters, limit, offset)` → (записи, всего), `add`, `update`, `delete`, `set_age_groups`, `set_academic_groups`, `set_photos`. Карточка грузится сразу со справочными значениями, группами, фото и организатором.
-- `repositories/pg_contest_history.py` — `ContestHistoryRepository`: `add`, `list`.
 
 ### Домен `domain/contests.py` — класс `Contest`
 - `TRANSITIONS`, `VERIFICATION_TRANSITIONS`, `PUBLIC_STATUSES`, `NOT_DELETABLE`, `RATING_FIELDS` (поля, правка которых сбрасывает верификацию), `DEFAULT_RATING_POINTS` (по уровню).
 - `create(actor, fields)`, `update(actor, id, fields)`, `delete(actor, id)`.
 - `transition(actor, id, to_status, comment=None)` — единая точка смены статуса.
 - `request_verification(actor, id)`, `verify(actor, id, rating_points)`, `reject_verification(actor, id, reason)`, `revoke_verification(actor, id)`.
-- `get_public`, `list_public`, `get_for(actor, id)`, `list_for_organizer`, `list_all`, `history`.
+- `get_public`, `list_public`, `get_for(actor, id)`, `list_for_organizer`, `list_all`.
 - Права проверяются здесь: организатор трогает только своё (чужое → 404), федерация — всё.
 
 ### Фичи
 | Папка | Для кого |
 |---|---|
-| `features/calendar/` | публично |
+| `features/public/` | публично |
 | `features/organizer/` | роль `organizer` (верифицированный организатор) |
 | `features/admin/` | роль `federation` |
 
@@ -260,7 +258,7 @@
 Федерация: то же + `organizer_id?` (по умолчанию — сам сотрудник) + `rating_points?` (если сразу верифицирует своё).
 В PATCH все поля необязательные, проверки — на итоговых значениях.
 
-### Публично (`features/calendar/`)
+### Публично (`features/public/`)
 
 | Метод | Путь | Что делает |
 |---|---|---|
@@ -285,7 +283,6 @@
 |---|---|---|
 | GET | `/admin/contests` | все; фильтры как в календаре + `status`, `verification_status`, `organizer_id`. Очередь верификации = `?verification_status=pending`, по `verification_requested_at` от старых |
 | GET | `/admin/contests/{id}` | карточка целиком |
-| GET | `/admin/contests/{id}/history` | история статусов и верификации |
 | POST | `/admin/contests` | создать (полный функционал, можно сразу с `rating_points` → сразу верифицировано) |
 | PATCH | `/admin/contests/{id}` | правка |
 | DELETE | `/admin/contests/{id}` | удалить |
@@ -302,7 +299,7 @@
 
 ---
 
-## Демо-данные `manage/demo_contests.py`
+## Демо-данные `manage/seed/seed.sql`
 
 Даты — относительно дня запуска контейнера.
 
@@ -317,7 +314,7 @@
 | Кубок ПФО по алгоритмическому программированию | Алгоритмическое | Межрегиональное / Очно / личное | федерация | `completed`, 7 месяцев назад | `verified`, свои баллы на 5 мест |
 | Соревнования по программированию БПЛА | БАС | Региональное / Очно, г. Бузулук / личное | федерация | `cancelled` с причиной | `not_requested` |
 
-Два завершённых верифицированных соревнования в одной дисциплине в пределах года — под будущий рейтинг (коэффициент 1,2). У каждого — история статусов и верификации. Фото и положения — после влития файлов.
+Два завершённых верифицированных соревнования в одной дисциплине в пределах года — под будущий рейтинг (коэффициент 1,2). Фото и положения — после влития файлов.
 
 ---
 

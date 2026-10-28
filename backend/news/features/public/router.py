@@ -19,12 +19,14 @@ async def list_articles(
     limit: Annotated[int, Query(ge=1, le=100)] = 12,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ArticlePage:
+    """Возвращает страницу опубликованных статей по фильтрам."""
     items, total = await news.list_public(q.strip(), section, tag, limit, offset)
     return ArticlePage(items=[ArticleOut.model_validate(item) for item in items], total=total)
 
 
 @router.get("/tags", summary="Хэштеги опубликованных статей")
 async def list_tags(news: NewsDep) -> list[TagOut]:
+    """Возвращает хэштеги опубликованных статей с количеством упоминаний."""
     return [TagOut(name=name, count=count) for name, count in await news.tags()]
 
 
@@ -36,5 +38,6 @@ async def read_article(
     news: NewsDep,
     ip: ClientIp,
 ) -> ArticleOut:
+    """Возвращает опубликованную статью по slug, засчитывая просмотр по пользователю или IP."""
     visitor = str(user.id) if user else f"{ip}|{request.headers.get('user-agent', '')}"
     return ArticleOut.model_validate(await news.read(slug, visitor))

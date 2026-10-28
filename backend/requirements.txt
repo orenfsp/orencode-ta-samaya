@@ -9,3 +9,8 @@ pydantic-settings==2.9.1
 email-validator==2.2.0
 minio==7.2.15
 python-multipart==0.0.20
+httpx==0.28.1
+openpyxl==3.1.5
+weasyprint==66.0
+jinja2==3.1.6
+segno==1.6.6

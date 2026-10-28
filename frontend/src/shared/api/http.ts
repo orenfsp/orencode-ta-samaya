@@ -122,5 +122,16 @@ function safeJson(text: string): unknown {
   }
 }
 
+/** Файл с бэка (PDF, xlsx) как Blob: ошибки приходят обычным ApiError, а не страницей с JSON */
+export async function requestBlob(path: string, query?: Query, signal?: AbortSignal) {
+  const response = await fetch(buildUrl(path, query), { credentials: 'include', signal })
+  if (response.status === 401) onUnauthorized?.()
+  if (!response.ok) {
+    const text = await response.text()
+    throw new ApiError(response.status, text ? safeJson(text) : undefined)
+  }
+  return response.blob()
+}
+
 /** Ссылка на файл с бэка (.xlsx, .pdf, .docx) — скачивание обычной навигацией, cookie уйдёт сама */
 export const fileUrl = (path: string, query?: Query) => buildUrl(path, query).toString()

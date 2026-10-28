@@ -9,6 +9,8 @@ const nav: NavItem[] = [
   { label: 'Новости', to: routes.news },
   { label: 'Соревнования', to: routes.competitions },
   { label: 'Календарь', to: routes.calendar },
+  { label: 'Рейтинг', to: routes.ratings },
+  { label: 'Сборные', to: routes.squads },
 ]
 
 export function PublicLayout() {

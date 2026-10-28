@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router'
 import type { Me, Role } from '@/entities/session'
 import { routes } from '@/shared/config'
 import { cn } from '@/shared/lib'
+import { EmailVerifyStrip } from '@/features/email-verify'
+import { useNotificationSync } from '@/features/notification-center'
 import { BrandLogo, IconButton, IconClose, IconMenu } from '@/shared/ui'
 import { Sidebar } from './sidebar'
 
@@ -15,6 +17,7 @@ export function CabinetShell({ me, role, children }: { me: Me; role: Role; child
   const [menuOpen, setMenuOpen] = useState(false)
   const { pathname } = useLocation()
   const hidden = useHideOnScroll()
+  const unread = useNotificationSync(true)
 
   // Открытое мобильное меню не даёт листать страницу под собой
   useEffect(() => {
@@ -23,10 +26,10 @@ export function CabinetShell({ me, role, children }: { me: Me; role: Role; child
   }, [menuOpen])
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[17.5rem_minmax(0,1fr)]">
+    <div className="mx-auto min-h-dvh max-w-shell lg:grid lg:grid-cols-[17.5rem_minmax(0,1fr)]">
       <aside className="sticky top-0 hidden h-dvh p-3 pr-0 lg:block">
         <div className="grid-texture h-full rounded-2xl border border-line-soft p-4">
-          <Sidebar me={me} role={role} />
+          <Sidebar me={me} role={role} unread={unread} />
         </div>
       </aside>
 
@@ -40,13 +43,22 @@ export function CabinetShell({ me, role, children }: { me: Me; role: Role; child
         <Link to={routes.home} aria-label="На главную" className="rounded-sm">
           <BrandLogo className="h-7" />
         </Link>
-        <IconButton
-          aria-label="Открыть меню"
-          aria-expanded={menuOpen}
-          icon={<IconMenu />}
-          size="sm"
-          onClick={() => setMenuOpen(true)}
-        />
+        {/* Непрочитанные уведомления — точкой на кнопке меню: полоса остаётся «логотип + меню» */}
+        <span className="relative">
+          <IconButton
+            aria-label={unread ? `Открыть меню, непрочитанных уведомлений: ${unread}` : 'Открыть меню'}
+            aria-expanded={menuOpen}
+            icon={<IconMenu />}
+            size="sm"
+            onClick={() => setMenuOpen(true)}
+          />
+          {unread > 0 && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1 right-1 size-2 animate-pop-in rounded-full bg-live"
+            />
+          )}
+        </span>
       </div>
 
       {/* Мобильное меню выезжает справа — оттуда, где кнопка. Всегда в DOM, чтобы выезд и уход были плавными */}
@@ -78,7 +90,7 @@ export function CabinetShell({ me, role, children }: { me: Me; role: Role; child
             onClick={() => setMenuOpen(false)}
             className="absolute top-3 right-3"
           />
-          <Sidebar me={me} role={role} onNavigate={() => setMenuOpen(false)} />
+          <Sidebar me={me} role={role} unread={unread} onNavigate={() => setMenuOpen(false)} />
         </div>
       </div>
 
@@ -87,6 +99,9 @@ export function CabinetShell({ me, role, children }: { me: Me; role: Role; child
         key={pathname}
         className="min-w-0 animate-rise px-4 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10"
       >
+        {!me.email_verified && pathname !== routes.cabinetSettings(role) && (
+          <EmailVerifyStrip email={me.email} className="mb-8" />
+        )}
         {children}
       </main>
     </div>

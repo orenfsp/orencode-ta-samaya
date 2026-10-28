@@ -10,6 +10,7 @@ from dictionaries.repositories.pg_dictionaries import DictionaryRepository
 
 
 def get_dictionary(db: DbSession, audit: Annotated[Audit, Depends(get_audit)]) -> Dictionary:
+    """Собирает домен справочников со всеми его зависимостями."""
     return Dictionary(UnitOfWork(db), DictionaryRepository(db), audit)
 
 

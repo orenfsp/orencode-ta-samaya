@@ -10,13 +10,16 @@ from audit.domain.audit import Audit
 from contests.repositories.pg_contests import ContestRepository
 from core.database import DbSession, UnitOfWork
 from dictionaries.dependencies import DictionaryDep
+from notifications.dependencies import NotificationsDep
 
 
 def get_applications(
     db: DbSession,
     dictionary: DictionaryDep,
     audit: Annotated[Audit, Depends(get_audit)],
+    notifications: NotificationsDep,
 ) -> Applications:
+    """Собирает домен заявок на участие со всеми его зависимостями."""
     return Applications(
         uow=UnitOfWork(db),
         applications=ApplicationRepository(db),
@@ -24,6 +27,7 @@ def get_applications(
         contests=ContestRepository(db),
         dictionary=dictionary,
         audit=audit,
+        notifications=notifications,
     )
 
 

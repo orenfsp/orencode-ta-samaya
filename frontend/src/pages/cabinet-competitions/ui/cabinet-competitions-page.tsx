@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import {
   canEdit,
   CompetitionCard,
@@ -12,11 +12,14 @@ import {
   type CompetitionSort,
   type ManagedCompetition,
 } from '@/entities/competition'
+import { useContestsWithApplications } from '@/entities/application'
 import { fullName, useMe, type Role } from '@/entities/session'
 import { useRoleRequests } from '@/features/account-moderate'
+import { ModerationModal } from '@/features/application-moderate'
+import { JudgePanelModal } from '@/features/judge-panel'
 import {
   CompetitionActionsMenu,
-  CompetitionFormDrawer,
+  CompetitionFormModal,
   useCompetitionActions,
 } from '@/features/competition-manage'
 import { routes } from '@/shared/config'
@@ -42,7 +45,7 @@ type Tab = 'all' | 'queue'
 
 /** Отдельного списка пользователей нет: организаторы — подтверждённые роли organizer */
 function useOrganizerOptions(enabled: boolean) {
-  const organizers = useRoleRequests({ role: 'organizer', status: 'verified' }, 200, enabled)
+  const organizers = useRoleRequests({ role: 'organizer', status: 'verified' }, 200, 0, enabled)
   return {
     data: organizers.data?.items.map(({ user }) => ({
       value: user.id,
@@ -71,12 +74,19 @@ function CompetitionTile({
   item,
   scope,
   actions,
+  waiting,
   onEdit,
+  onApplications,
+  onJudges,
 }: {
   item: ManagedCompetition
   scope: CompetitionScope
   actions: ReturnType<typeof useCompetitionActions>
+  /** Заявок на рассмотрении; null — заявок нет вовсе */
+  waiting: number | null
   onEdit: () => void
+  onApplications: () => void
+  onJudges: () => void
 }) {
   const mark = verificationMark[item.verification_status]
   return (
@@ -101,10 +111,21 @@ function CompetitionTile({
         )
       }
       footer={
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           {canEdit(item.status) && (
             <Button variant="secondary" size="sm" onClick={onEdit}>
               Изменить
+            </Button>
+          )}
+          {(waiting != null || item.status !== 'draft') && (
+            <Button variant="secondary" size="sm" onClick={onApplications}>
+              Заявки
+              {waiting ? <span className="font-mono text-live-text tabular-nums">{waiting}</span> : null}
+            </Button>
+          )}
+          {!['draft', 'completed', 'archived', 'cancelled'].includes(item.status) && (
+            <Button variant="secondary" size="sm" onClick={onJudges}>
+              Судьи
             </Button>
           )}
           <Button variant="text" size="sm" to={routes.competition(item.id)} className="mr-auto">
@@ -123,13 +144,15 @@ export function CabinetCompetitionsPage() {
   const scope: CompetitionScope = role === 'federation' ? 'admin' : 'organizer'
   const admin = scope === 'admin'
   const { data: me } = useMe()
-  const [tab, setTab] = useState<Tab>('all')
+  // Вкладка в адресе: уведомление «ждёт верификации» ведёт сразу в очередь (?tab=queue)
+  const [params, setParams] = useSearchParams()
+  const tab: Tab = params.get('tab') === 'queue' ? 'queue' : 'all'
+  const setTab = (next: Tab) => setParams(next === 'queue' ? { tab: next } : {}, { replace: true })
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [verification, setVerification] = useState('')
   const [sort, setSort] = useState<CompetitionSort>('date_desc')
-  const [limit, setLimit] = useState(STEP)
-  const [drawer, setDrawer] = useState<{ open: boolean; item: ManagedCompetition | null; key: number }>({
+  const [form, setForm] = useState<{ open: boolean; item: ManagedCompetition | null; key: number }>({
     open: false,
     item: null,
     key: 0,
@@ -143,24 +166,37 @@ export function CabinetCompetitionsPage() {
     // Очередь — по времени запроса (так отдаёт бэк), остальное — как выбрал человек
     sort: queue ? undefined : sort,
   }
-  const competitions = useManagedCompetitions(scope, filters, limit)
+  const competitions = useManagedCompetitions(scope, filters, STEP)
   const pendingCount = useManagedCompetitions(scope, { verification_status: 'pending' }, 1)
-  const organizers = useOrganizerOptions(admin && drawer.open)
+  const organizers = useOrganizerOptions(admin && form.open)
   const actions = useCompetitionActions(scope)
+  const withApplications = useContestsWithApplications(scope)
+  const [moderated, setModerated] = useState<{ open: boolean; item: ManagedCompetition | null; key: number }>(
+    {
+      open: false,
+      item: null,
+      key: 0,
+    },
+  )
+
+  const [judged, setJudged] = useState<{ open: boolean; item: ManagedCompetition | null; key: number }>({
+    open: false,
+    item: null,
+    key: 0,
+  })
 
   const filtered = Boolean(filters.search || filters.status || (!queue && filters.verification_status))
   const reset = () => {
     setSearch('')
     setStatus('')
     setVerification('')
-    setLimit(STEP)
   }
   const open = (item: ManagedCompetition | null) =>
-    setDrawer((current) => ({ open: true, item, key: current.key + 1 }))
+    setForm((current) => ({ open: true, item, key: current.key + 1 }))
 
   if (!me) return null
   const self = { value: me.id, label: `${fullName(me)} (вы)` }
-  const owner = drawer.item?.organizer
+  const owner = form.item?.organizer
   const organizerOptions = [
     self,
     ...(owner && owner.id !== me.id && !organizers.data?.some((option) => option.value === owner.id)
@@ -200,7 +236,6 @@ export function CabinetCompetitionsPage() {
           value={tab}
           onChange={(next) => {
             setTab(next)
-            setLimit(STEP)
           }}
           items={[
             { value: 'all', label: 'Все' },
@@ -226,7 +261,6 @@ export function CabinetCompetitionsPage() {
             value={search}
             onChange={(event) => {
               setSearch(event.target.value)
-              setLimit(STEP)
             }}
           />
         </Field>
@@ -236,7 +270,6 @@ export function CabinetCompetitionsPage() {
             options={statusOptions}
             onChange={(event) => {
               setStatus(event.target.value)
-              setLimit(STEP)
             }}
           />
         </Field>
@@ -247,7 +280,6 @@ export function CabinetCompetitionsPage() {
               options={sortOptions}
               onChange={(event) => {
                 setSort(event.target.value as CompetitionSort)
-                setLimit(STEP)
               }}
             />
           </Field>
@@ -259,7 +291,6 @@ export function CabinetCompetitionsPage() {
               options={verificationOptions}
               onChange={(event) => {
                 setVerification(event.target.value)
-                setLimit(STEP)
               }}
             />
           </Field>
@@ -267,7 +298,7 @@ export function CabinetCompetitionsPage() {
       </div>
 
       {competitions.isPending ? (
-        <div className="grid gap-4 min-[1920px]:grid-cols-4 sm:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           {[1, 2, 3].map((id) => (
             <Skeleton key={id} className="h-96 rounded-xl" />
           ))}
@@ -300,14 +331,20 @@ export function CabinetCompetitionsPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-6" aria-busy={competitions.isFetching}>
-          <div className="grid gap-4 min-[1920px]:grid-cols-4 sm:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             {items.map((item) => (
               <CompetitionTile
                 key={item.id}
                 item={item}
                 scope={scope}
                 actions={actions}
+                waiting={
+                  withApplications.data?.items.find((entry) => entry.contest.id === item.id)?.counts
+                    .submitted ?? null
+                }
                 onEdit={() => open(item)}
+                onApplications={() => setModerated((current) => ({ open: true, item, key: current.key + 1 }))}
+                onJudges={() => setJudged((current) => ({ open: true, item, key: current.key + 1 }))}
               />
             ))}
           </div>
@@ -315,8 +352,8 @@ export function CabinetCompetitionsPage() {
             <div className="flex flex-col items-center gap-2 pt-2">
               <Button
                 variant="secondary"
-                loading={competitions.isFetching}
-                onClick={() => setLimit((current) => current + STEP)}
+                loading={competitions.isFetchingNextPage}
+                onClick={() => void competitions.fetchNextPage()}
               >
                 Показать ещё
               </Button>
@@ -328,16 +365,33 @@ export function CabinetCompetitionsPage() {
         </div>
       )}
 
-      <CompetitionFormDrawer
-        key={drawer.key}
-        open={drawer.open}
+      <CompetitionFormModal
+        key={form.key}
+        open={form.open}
         scope={scope}
-        item={drawer.item}
+        item={form.item}
         actions={actions}
         currentUserId={me.id}
         organizers={organizerOptions}
-        onClose={() => setDrawer((current) => ({ ...current, open: false }))}
+        onClose={() => setForm((current) => ({ ...current, open: false }))}
       />
+      {judged.item && (
+        <JudgePanelModal
+          key={judged.key}
+          contest={judged.item}
+          open={judged.open}
+          onClose={() => setJudged((current) => ({ ...current, open: false }))}
+        />
+      )}
+      {moderated.item && (
+        <ModerationModal
+          key={moderated.key}
+          scope={scope}
+          contest={moderated.item}
+          open={moderated.open}
+          onClose={() => setModerated((current) => ({ ...current, open: false }))}
+        />
+      )}
     </div>
   )
 }

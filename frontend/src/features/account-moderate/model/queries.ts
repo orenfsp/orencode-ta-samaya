@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { auditKeys } from '@/entities/audit'
 import { sessionKeys } from '@/entities/session'
 import { showToast } from '@/shared/ui'
 import { roleRequestApi } from '../api/role-request-api'
@@ -7,15 +8,16 @@ import type { RoleRequest, RoleRequestFilters } from './types'
 
 export const roleRequestKeys = {
   all: ['role-requests'] as const,
-  list: (filters: RoleRequestFilters, limit: number) => ['role-requests', 'list', filters, limit] as const,
+  list: (filters: RoleRequestFilters, limit: number, offset: number) =>
+    ['role-requests', 'list', filters, limit, offset] as const,
   counts: ['role-requests', 'counts'] as const,
 }
 
-/** «Показать ещё» увеличивает limit, прежний список остаётся на экране, пока грузится новый */
-export function useRoleRequests(filters: RoleRequestFilters, limit: number, enabled = true) {
+/** Постранично: limit + offset; прежняя страница остаётся на экране, пока грузится новая */
+export function useRoleRequests(filters: RoleRequestFilters, limit: number, offset: number, enabled = true) {
   return useQuery({
-    queryKey: roleRequestKeys.list(filters, limit),
-    queryFn: ({ signal }) => roleRequestApi.list(filters, limit, 0, signal),
+    queryKey: roleRequestKeys.list(filters, limit, offset),
+    queryFn: ({ signal }) => roleRequestApi.list(filters, limit, offset, signal),
     placeholderData: keepPreviousData,
     enabled,
   })
@@ -37,6 +39,7 @@ export function useRoleModeration() {
     Promise.all([
       client.invalidateQueries({ queryKey: roleRequestKeys.all }),
       client.invalidateQueries({ queryKey: sessionKeys.me }),
+      client.invalidateQueries({ queryKey: auditKeys.all }),
     ])
   const fail = (title: string) => (error: Error) =>
     showToast(title, { tone: 'danger', description: error.message })

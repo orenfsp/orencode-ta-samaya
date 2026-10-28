@@ -153,16 +153,6 @@ export interface CompetitionInput {
   rating_points?: RatingPoint[]
 }
 
-export interface HistoryEntry {
-  id: number
-  kind: 'status' | 'verification'
-  from_value: string | null
-  to_value: string
-  comment: string | null
-  created_at: string
-  user: { id: string; email: string; last_name: string; first_name: string } | null
-}
-
 export interface LevelPoints {
   level: Ref
   rating_points: RatingPoint[]

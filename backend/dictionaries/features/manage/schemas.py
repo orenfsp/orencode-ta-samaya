@@ -12,10 +12,12 @@ Months = Annotated[int, Field(ge=1, le=1200)]
 
 
 def _empty_to_none(value: str | None) -> str | None:
+    """Превращает пустую строку в None."""
     return value or None
 
 
 def _required(value: object) -> object:
+    """Проверяет, что поле передано (не None) при частичном обновлении."""
     if value is None:
         raise ValueError("Обязательное поле")
     return value

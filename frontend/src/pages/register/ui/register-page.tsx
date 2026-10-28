@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { RegisterWizard } from '@/features/auth-register'
+import { EmailVerifyForm } from '@/features/email-verify'
 import { hasCabinetAccess, roleLabels, type User } from '@/entities/session'
 import { routes } from '@/shared/config'
 import { Button, IconArrowRight, StatusTag } from '@/shared/ui'
@@ -41,7 +42,22 @@ function RegisterSuccess({ user }: { user: User }) {
   )
 }
 
+/** Регистрация: анкета → код из письма (можно позже) → что открыто */
 export function RegisterPage() {
   const [user, setUser] = useState<User | null>(null)
-  return user ? <RegisterSuccess user={user} /> : <RegisterWizard onSuccess={setUser} />
+  const [verified, setVerified] = useState(false)
+  if (!user) return <RegisterWizard onSuccess={setUser} />
+  if (!verified)
+    return (
+      <EmailVerifyForm
+        email={user.email}
+        onDone={() => setVerified(true)}
+        secondary={
+          <Button variant="ghost" onClick={() => setVerified(true)}>
+            Подтвердить позже
+          </Button>
+        }
+      />
+    )
+  return <RegisterSuccess user={user} />
 }

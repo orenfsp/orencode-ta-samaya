@@ -35,6 +35,7 @@ OUT_SCHEMAS: dict[str, type[DictionaryItemOut]] = {
 
 
 def _add_common_routes(key: str, title: str) -> None:
+    """Регистрирует для справочника общие маршруты: список, удаление, архивацию и восстановление."""
     out = OUT_SCHEMAS.get(key, DictionaryItemOut)
     tag = f"Справочники (федерация): {title}"
 
@@ -43,15 +44,19 @@ def _add_common_routes(key: str, title: str) -> None:
         dictionary: DictionaryDep,
         include_archived: Annotated[bool, Query()] = False,
     ) -> Any:
+        """Список записей справочника."""
         return [out.model_validate(item) for item in await dictionary.list(key, include_archived)]
 
     async def delete_item(item_id: ItemId, user: Federation, ip: ClientIp, dictionary: DictionaryDep) -> None:
+        """Удаляет запись справочника."""
         await dictionary.delete(key, item_id, user.id, ip)
 
     async def archive_item(item_id: ItemId, user: Federation, ip: ClientIp, dictionary: DictionaryDep) -> Any:
+        """Архивирует запись справочника."""
         return out.model_validate(await dictionary.archive(key, item_id, user.id, ip))
 
     async def restore_item(item_id: ItemId, user: Federation, ip: ClientIp, dictionary: DictionaryDep) -> Any:
+        """Восстанавливает запись справочника из архива."""
         return out.model_validate(await dictionary.restore(key, item_id, user.id, ip))
 
     router.add_api_route(
@@ -84,6 +89,7 @@ def _add_common_routes(key: str, title: str) -> None:
 
 
 def _register(key: str, tag: str, create: Any, update: Any, out: type[DictionaryItemOut]) -> None:
+    """Регистрирует маршруты создания и обновления записи справочника."""
     router.add_api_route(
         f"/{key}",
         create,
@@ -99,9 +105,12 @@ def _register(key: str, tag: str, create: Any, update: Any, out: type[Dictionary
 
 
 def _add_simple_routes(key: str, title: str) -> None:
+    """Регистрирует создание и обновление для простого справочника без дополнительных полей."""
+
     async def create_item(
         body: Annotated[DictionaryItemCreate, Body()], user: Federation, ip: ClientIp, dictionary: DictionaryDep
     ) -> Any:
+        """Создаёт запись справочника."""
         return DictionaryItemOut.model_validate(await dictionary.create(key, body.model_dump(), user.id, ip))
 
     async def update_item(
@@ -111,6 +120,7 @@ def _add_simple_routes(key: str, title: str) -> None:
         ip: ClientIp,
         dictionary: DictionaryDep,
     ) -> Any:
+        """Обновляет запись справочника."""
         fields = body.model_dump(exclude_unset=True)
         return DictionaryItemOut.model_validate(await dictionary.update(key, item_id, fields, user.id, ip))
 
@@ -118,9 +128,12 @@ def _add_simple_routes(key: str, title: str) -> None:
 
 
 def _add_age_group_routes(key: str, title: str) -> None:
+    """Регистрирует создание и обновление для справочника возрастных групп."""
+
     async def create_item(
         body: Annotated[DictionaryAgeGroupCreate, Body()], user: Federation, ip: ClientIp, dictionary: DictionaryDep
     ) -> Any:
+        """Создаёт возрастную группу."""
         return DictionaryAgeGroupOut.model_validate(await dictionary.create(key, body.model_dump(), user.id, ip))
 
     async def update_item(
@@ -130,6 +143,7 @@ def _add_age_group_routes(key: str, title: str) -> None:
         ip: ClientIp,
         dictionary: DictionaryDep,
     ) -> Any:
+        """Обновляет возрастную группу."""
         fields = body.model_dump(exclude_unset=True)
         return DictionaryAgeGroupOut.model_validate(await dictionary.update(key, item_id, fields, user.id, ip))
 
@@ -137,9 +151,12 @@ def _add_age_group_routes(key: str, title: str) -> None:
 
 
 def _add_rank_type_routes(key: str, title: str) -> None:
+    """Регистрирует создание и обновление для справочника разрядов и званий."""
+
     async def create_item(
         body: Annotated[DictionaryRankTypeCreate, Body()], user: Federation, ip: ClientIp, dictionary: DictionaryDep
     ) -> Any:
+        """Создаёт разряд или звание."""
         return DictionaryRankTypeOut.model_validate(await dictionary.create(key, body.model_dump(), user.id, ip))
 
     async def update_item(
@@ -149,6 +166,7 @@ def _add_rank_type_routes(key: str, title: str) -> None:
         ip: ClientIp,
         dictionary: DictionaryDep,
     ) -> Any:
+        """Обновляет разряд или звание."""
         fields = body.model_dump(exclude_unset=True)
         return DictionaryRankTypeOut.model_validate(await dictionary.update(key, item_id, fields, user.id, ip))
 
@@ -156,9 +174,12 @@ def _add_rank_type_routes(key: str, title: str) -> None:
 
 
 def _add_judge_category_routes(key: str, title: str) -> None:
+    """Регистрирует создание и обновление для справочника судейских категорий."""
+
     async def create_item(
         body: Annotated[DictionaryJudgeCategoryCreate, Body()], user: Federation, ip: ClientIp, dictionary: DictionaryDep
     ) -> Any:
+        """Создаёт судейскую категорию."""
         return DictionaryJudgeCategoryOut.model_validate(await dictionary.create(key, body.model_dump(), user.id, ip))
 
     async def update_item(
@@ -168,6 +189,7 @@ def _add_judge_category_routes(key: str, title: str) -> None:
         ip: ClientIp,
         dictionary: DictionaryDep,
     ) -> Any:
+        """Обновляет судейскую категорию."""
         fields = body.model_dump(exclude_unset=True)
         return DictionaryJudgeCategoryOut.model_validate(await dictionary.update(key, item_id, fields, user.id, ip))
 

@@ -42,6 +42,7 @@ async def list_own(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ContestPage:
+    """Возвращает страницу соревнований текущего организатора по фильтру."""
     query = ContestQuery(
         statuses=frozenset({status_filter}) if status_filter else None,
         verification_status=verification_status,
@@ -54,6 +55,7 @@ async def list_own(
 
 @router.get("/{contest_id}", summary="Моё соревнование")
 async def get_own(contest_id: ContestId, user: Organizer, contests: ContestDep) -> ContestOut:
+    """Возвращает соревнование организатора по id."""
     return ContestOut.model_validate(await contests.get_for(user.id, False, contest_id))
 
 
@@ -61,6 +63,7 @@ async def get_own(contest_id: ContestId, user: Organizer, contests: ContestDep) 
 async def create(
     body: Annotated[ContestIn, Body()], user: Organizer, ip: ClientIp, contests: ContestDep
 ) -> ContestOut:
+    """Создаёт соревнование от имени текущего организатора."""
     return ContestOut.model_validate(await contests.create(user.id, False, body.model_dump(), ip))
 
 
@@ -72,12 +75,14 @@ async def update(
     ip: ClientIp,
     contests: ContestDep,
 ) -> ContestOut:
+    """Обновляет указанные поля своего соревнования."""
     fields = body.model_dump(exclude_unset=True)
     return ContestOut.model_validate(await contests.update(user.id, False, contest_id, fields, ip))
 
 
 @router.delete("/{contest_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить соревнование")
 async def delete(contest_id: ContestId, user: Organizer, ip: ClientIp, contests: ContestDep) -> None:
+    """Удаляет своё соревнование."""
     await contests.delete(user.id, False, contest_id, ip)
 
 
@@ -89,6 +94,7 @@ async def cancel(
     ip: ClientIp,
     contests: ContestDep,
 ) -> ContestOut:
+    """Отменяет своё соревнование с указанием причины."""
     item = await contests.transition(user.id, False, contest_id, "cancel", ip, body.reason)
     return ContestOut.model_validate(item)
 
@@ -97,13 +103,16 @@ async def cancel(
 async def request_verification(
     contest_id: ContestId, user: Organizer, ip: ClientIp, contests: ContestDep
 ) -> ContestOut:
+    """Отправляет своё соревнование на верификацию в федерацию."""
     return ContestOut.model_validate(await contests.request_verification(user.id, contest_id, ip))
 
 
 def _add_action(path: str, title: str) -> None:
+    """Регистрирует POST-эндпоинт для простого перехода статуса соревнования по имени действия."""
     action = path.replace("-", "_")
 
     async def run(contest_id: ContestId, user: Organizer, ip: ClientIp, contests: ContestDep) -> Any:
+        """Выполняет переход статуса соревнования и возвращает обновлённое соревнование."""
         return ContestOut.model_validate(await contests.transition(user.id, False, contest_id, action, ip))
 
     router.add_api_route(

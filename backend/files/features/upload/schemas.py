@@ -19,6 +19,7 @@ class FileOut(BaseModel):
     @computed_field
     @property
     def url(self) -> str:
+        """Публичная ссылка на файл или путь для скачивания через API."""
         if self.is_public:
             return f"{settings.s3_public_url}/{settings.s3_public_bucket}/{quote(self.object_key)}"
         return f"/api/v1/files/{self.id}"

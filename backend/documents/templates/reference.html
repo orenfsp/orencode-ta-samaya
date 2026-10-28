@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Справки ФСП</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: "Roboto", sans-serif; color: #1B1C21; }
+  .page { position: relative; width: 210mm; height: 297mm; overflow: hidden; page-break-after: always; background: #FFFFFF; }
+  .page:last-child { page-break-after: auto; }
+
+  .band { position: absolute; left: 0; top: 0; right: 0; height: 5mm; background: #402FFF; }
+  .mark { position: absolute; right: -30mm; bottom: -26mm; width: 100mm; opacity: 0.06; }
+
+  .head { position: absolute; left: 20mm; right: 20mm; top: 17mm; height: 30mm; border-bottom: 0.3mm solid #C8C9CA; }
+  .logo { position: absolute; left: 0; top: 0; height: 11mm; }
+  .org { position: absolute; left: 0; top: 14mm; width: 110mm; font-size: 9pt; color: #5B5C62; line-height: 1.4; }
+  .qr { position: absolute; right: 0; top: 0; width: 24mm; height: 24mm; }
+  .qr svg { width: 24mm; height: 24mm; }
+
+  .main { position: absolute; left: 20mm; right: 20mm; top: 58mm; }
+  .kind { font-family: "JetBrains Mono", monospace; font-size: 10pt; color: #5B5C62; }
+  .title { margin-top: 2mm; font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 22pt; line-height: 1.15; }
+  .body { margin-top: 10mm; font-size: 12pt; line-height: 1.6; }
+  .body p + p { margin-top: 4mm; }
+  table { margin-top: 8mm; width: 100%; border-collapse: collapse; font-size: 11pt; }
+  td { padding: 2.2mm 0; border-bottom: 0.3mm solid #EDEDED; vertical-align: top; }
+  td.label { width: 48mm; color: #5B5C62; }
+  td.value { font-weight: 500; }
+  ul { margin-top: 1mm; padding-left: 5mm; font-weight: 400; }
+
+  .foot { position: absolute; left: 20mm; right: 20mm; bottom: 22mm; font-size: 10.5pt; }
+  .sign { width: 100%; }
+  .sign .position { color: #5B5C62; }
+  .sign .row { margin-top: 10mm; border-top: 0.3mm solid #C8C9CA; padding-top: 1.5mm; text-align: right; font-weight: 500; }
+  .check { margin-top: 10mm; font-size: 9pt; color: #5B5C62; line-height: 1.5; }
+  .check .mono { font-family: "JetBrains Mono", monospace; color: #1B1C21; }
+</style>
+</head>
+<body>
+{% for page in pages %}
+{% set form = page.form %}{% set who = page.recipient %}{% set contest = page.contest %}
+<section class="page">
+  <div class="band"></div>
+  <img class="mark" src="fsp-mark-light.svg" alt="">
+
+  <div class="head">
+    <img class="logo" src="fsp-logo.svg" alt="ФСП">
+    <div class="org">Региональное отделение Федерации спортивного программирования Оренбургской области</div>
+    <div class="qr">{{ page.qr|safe }}</div>
+  </div>
+
+  <div class="main">
+    <div class="kind">Справка № {{ page.number }} · {{ form.issued_on|ru_date }}</div>
+    <div class="title">{{ form.title }}</div>
+
+    <div class="body">
+      {% if who.role == 'judge' %}
+      <p>Настоящая справка подтверждает, что {{ who.name }} входил(а) в судейскую коллегию соревнования «{{ contest.title }}», {{ contest.dates }}{% if contest.place %}, {{ contest.place }}{% endif %}{% if who.position %}, должность — {{ who.position|lower }}{% endif %}.</p>
+      {% elif who.role == 'coach' %}
+      <p>Настоящая справка подтверждает, что {{ who.name }} в качестве тренера подготовил(а) спортсменов к соревнованию «{{ contest.title }}», {{ contest.dates }}{% if contest.place %}, {{ contest.place }}{% endif %}.</p>
+      {% else %}
+      <p>Настоящая справка подтверждает, что {{ who.name }} принял(а) участие в соревновании «{{ contest.title }}», {{ contest.dates }}{% if contest.place %}, {{ contest.place }}{% endif %}{% if who.team %}, в составе команды «{{ who.team }}»{% endif %}{% if who.place %}, и занял(а) {{ who.place }} место{% endif %}.</p>
+      {% endif %}
+      {% if form.text %}<p>{{ form.text }}</p>{% endif %}
+    </div>
+
+    <table>
+      <tr><td class="label">Дисциплина</td><td class="value">{{ contest.discipline }}</td></tr>
+      <tr><td class="label">Даты</td><td class="value">{{ contest.dates }}</td></tr>
+      {% if contest.place %}<tr><td class="label">Место проведения</td><td class="value">{{ contest.place }}</td></tr>{% endif %}
+      <tr><td class="label">Роль</td><td class="value">{{ 'Судья' if who.role == 'judge' else 'Тренер' if who.role == 'coach' else 'Спортсмен' }}</td></tr>
+      {% if who.position %}<tr><td class="label">Должность</td><td class="value">{{ who.position }}</td></tr>{% endif %}
+      {% if who.team %}<tr><td class="label">Команда</td><td class="value">{{ who.team }}</td></tr>{% endif %}
+      {% if who.place %}<tr><td class="label">Место</td><td class="value">{{ who.place }}</td></tr>{% endif %}
+      {% if who.athletes %}<tr><td class="label">Спортсмены</td><td class="value"><ul>{% for line in who.athletes[:12] %}<li>{{ line }}</li>{% endfor %}</ul></td></tr>{% endif %}
+      <tr><td class="label">Организатор</td><td class="value">{{ contest.organizer }}</td></tr>
+    </table>
+  </div>
+
+  <div class="foot">
+    <div class="sign">
+      {% if form.signer_position %}<div class="position">{{ form.signer_position }}</div>{% endif %}
+      <div class="row">{{ form.signer_name or '' }}</div>
+    </div>
+    <div class="check">Подлинность справки проверяется по QR-коду или на странице<br><span class="mono">{{ page.url }}</span></div>
+  </div>
+</section>
+{% endfor %}
+</body>
+</html>

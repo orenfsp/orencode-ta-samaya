@@ -2,12 +2,19 @@ import { useMutation } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { sessionApi } from '@/entities/session'
 import { ApiError } from '@/shared/api'
-import { routes } from '@/shared/config'
 import { isPasswordValid } from '@/shared/lib'
 import { Button, Field, FormAlert, PasswordInput, PasswordRules } from '@/shared/ui'
 
-/** Новый пароль по токену из письма. Бэк закрывает все сессии — после успеха человек входит заново */
-export function ResetPasswordForm({ token, onSuccess }: { token: string; onSuccess: () => void }) {
+/** Новый пароль по токену после проверки кода. Бэк закрывает все сессии — после успеха человек входит заново */
+export function ResetPasswordForm({
+  token,
+  onSuccess,
+  onExpired,
+}: {
+  token: string
+  onSuccess: () => void
+  onExpired: () => void
+}) {
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
   const [touched, setTouched] = useState(false)
@@ -35,10 +42,10 @@ export function ResetPasswordForm({ token, onSuccess }: { token: string; onSucce
   if (tokenInvalid) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-h2 font-medium">Ссылка устарела</h1>
-        <FormAlert>Ссылка для сброса действует час и работает один раз. Запросите новую.</FormAlert>
-        <Button to={routes.forgotPassword} size="lg" fullWidth>
-          Запросить новую ссылку
+        <h1 className="text-h2 font-medium">Время вышло</h1>
+        <FormAlert>На новый пароль даётся 10 минут после ввода кода. Запросите код ещё раз.</FormAlert>
+        <Button size="lg" fullWidth onClick={onExpired}>
+          Запросить новый код
         </Button>
       </div>
     )

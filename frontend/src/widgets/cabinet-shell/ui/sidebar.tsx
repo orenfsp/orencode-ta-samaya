@@ -1,14 +1,16 @@
+import { personAvatar } from '@/entities/person'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { fullName, roleLabels, useLogout, type Me, type Role } from '@/entities/session'
+import { NotificationSheet } from '@/features/notification-center'
 import { routes } from '@/shared/config'
 import { cn } from '@/shared/lib'
 import {
   Avatar,
   BrandLogo,
   IconButton,
-  IconCheck,
+  IconChevronDown,
   IconLogOut,
-  IconSwap,
+  IconShieldCheck,
   Menu,
   showToast,
   ThemeToggle,
@@ -16,11 +18,24 @@ import {
 import { cabinetNav } from '../model/nav'
 
 /** Содержимое боковой панели — общее для десктопа и мобильного меню */
-export function Sidebar({ me, role, onNavigate }: { me: Me; role: Role; onNavigate?: () => void }) {
+export function Sidebar({
+  me,
+  role,
+  unread = 0,
+  onNavigate,
+}: {
+  me: Me
+  role: Role
+  /** Непрочитанные уведомления — числом на колокольчике у переключателя темы */
+  unread?: number
+  onNavigate?: () => void
+}) {
   const navigate = useNavigate()
   const logout = useLogout()
   const otherRoles = me.available_roles.filter((item) => item !== role)
   const pending = me.roles.filter((item) => !me.available_roles.includes(item.role))
+  const hasPage = me.roles.some((item) => item.status === 'verified')
+  const verifiedCoach = me.roles.some((item) => item.role === 'coach' && item.status === 'verified')
 
   return (
     <div className="flex h-full flex-col">
@@ -29,8 +44,7 @@ export function Sidebar({ me, role, onNavigate }: { me: Me; role: Role; onNaviga
       </Link>
 
       {/* Смена роли без повторного входа: кабинеты ролей живут по своим адресам */}
-      <div className="mt-8">
-        <p className="mb-2 px-3 font-mono text-xs text-muted">Кабинет</p>
+      <div className="mt-6">
         {otherRoles.length ? (
           <Menu
             aria-label="Сменить кабинет"
@@ -47,13 +61,13 @@ export function Sidebar({ me, role, onNavigate }: { me: Me; role: Role; onNaviga
               <button
                 type="button"
                 {...props}
-                className="group flex w-full pressable items-center gap-3 rounded-md border border-line-soft bg-surface-2 px-3 py-2.5 text-left hover:border-line"
+                className="group flex w-full pressable items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-hover-tint"
               >
-                <span className="flex-1 font-mono text-lead text-ink">{roleLabels[role]}</span>
-                <IconSwap
-                  size={18}
+                <span className="flex-1 truncate text-body text-ink">{roleLabels[role]}</span>
+                <IconChevronDown
+                  size={16}
                   className={cn(
-                    'text-muted transition-[rotate,color] duration-340 ease-emphasized group-hover:text-ink',
+                    'text-muted transition-[rotate,color] duration-220 ease-emphasized group-hover:text-ink',
                     props['aria-expanded'] && 'rotate-180 text-ink',
                   )}
                 />
@@ -61,13 +75,14 @@ export function Sidebar({ me, role, onNavigate }: { me: Me; role: Role; onNaviga
             )}
           />
         ) : (
-          <p className="rounded-md border border-line-soft bg-surface-2 px-3 py-2.5 font-mono text-lead text-ink">
-            {roleLabels[role]}
-          </p>
+          <p className="px-3 py-2 text-body text-ink">{roleLabels[role]}</p>
         )}
       </div>
 
-      <nav aria-label="Разделы кабинета" className="mt-6 flex flex-col gap-0.5">
+      <nav
+        aria-label="Разделы кабинета"
+        className="mt-2 flex flex-col gap-0.5 border-t border-line-soft pt-3"
+      >
         {cabinetNav(role).map((item) => (
           <NavLink
             key={item.to}
@@ -104,11 +119,11 @@ export function Sidebar({ me, role, onNavigate }: { me: Me; role: Role; onNaviga
 
       {pending.length > 0 && (
         <div className="mt-6 flex flex-col gap-1.5 px-3">
-          <p className="font-mono text-xs text-muted">Ожидают подтверждения</p>
+          <p className="text-xs text-muted">Ожидают подтверждения</p>
           {pending.map((item) => (
             <p key={item.role} className="flex items-center justify-between gap-2 text-sm text-ink">
               {roleLabels[item.role]}
-              <span className={item.status === 'rejected' ? 'text-danger-text' : 'text-muted'}>
+              <span className={item.status === 'rejected' ? 'text-live-text' : 'text-muted'}>
                 {item.status === 'rejected' ? 'отклонена' : 'на проверке'}
               </span>
             </p>
@@ -117,11 +132,29 @@ export function Sidebar({ me, role, onNavigate }: { me: Me; role: Role; onNaviga
       )}
 
       <div className="mt-auto flex items-center gap-1 border-t border-line-soft px-1 pt-4">
-        <Avatar name={`${me.last_name} ${me.first_name}`} size="sm" />
+        <Avatar name={`${me.last_name} ${me.first_name}`} src={personAvatar(me.id)} size="sm" />
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-sm text-ink">{fullName(me)}</span>
+          <span className="flex min-w-0 items-center gap-1 text-sm text-ink">
+            {hasPage ? (
+              <Link
+                to={routes.person(me.id)}
+                className="truncate rounded-sm link-underline focus-visible:field-focus"
+                data-tooltip="Моя страница"
+              >
+                {fullName(me)}
+              </Link>
+            ) : (
+              <span className="truncate">{fullName(me)}</span>
+            )}
+            {verifiedCoach && (
+              <span data-tooltip="Тренер проверен ФСП" aria-label="Тренер проверен ФСП" role="img">
+                <IconShieldCheck size={14} className="shrink-0 text-primary-text" />
+              </span>
+            )}
+          </span>
           <span className="truncate text-xs text-muted">{me.email}</span>
         </div>
+        <NotificationSheet role={role} unread={unread} />
         <ThemeToggle className="size-9" />
         <IconButton
           aria-label="Выйти"
@@ -138,11 +171,6 @@ export function Sidebar({ me, role, onNavigate }: { me: Me; role: Role; onNaviga
           }
         />
       </div>
-      {me.roles.some((item) => item.role === 'coach' && item.status === 'verified') && role === 'coach' && (
-        <p className="mt-2 flex items-center gap-1.5 px-1 text-xs text-muted">
-          <IconCheck size={14} className="text-ink" /> Верифицированный тренер
-        </p>
-      )}
     </div>
   )
 }

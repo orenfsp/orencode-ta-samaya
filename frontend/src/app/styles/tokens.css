@@ -38,9 +38,14 @@
   --c-surface-2: color-mix(in oklab, var(--fsp-ink) 91%, var(--fsp-white));
   --c-surface-3: color-mix(in oklab, var(--fsp-ink) 85%, var(--fsp-white));
   --c-line: color-mix(in oklab, var(--fsp-gray) 26%, var(--fsp-ink));
-  --c-line-soft: color-mix(in oklab, var(--fsp-gray) 13%, var(--fsp-ink));
-  /* Рамка карточки: в тёмной карточку отделяет тон, в светлой — тонкая линия */
-  --c-card-border: transparent;
+  --c-line-soft: color-mix(in oklab, var(--fsp-gray) 16%, var(--fsp-ink));
+  /* Рамка карточки: тонкий контур в обеих темах — карточка не тонет в фоне */
+  --c-card-border: color-mix(in oklab, var(--fsp-gray) 11%, var(--fsp-ink));
+
+  /* Поля ввода «утоплены»: темнее любой поверхности и с явной рамкой, на карточке и в окне видны сразу */
+  --c-field: color-mix(in oklab, var(--fsp-ink) 86%, #000);
+  --c-field-border: color-mix(in oklab, var(--fsp-gray) 34%, var(--fsp-ink));
+  --c-field-border-hover: color-mix(in oklab, var(--fsp-gray) 52%, var(--fsp-ink));
 
   --c-ink: var(--fsp-light);
   --c-muted: color-mix(in oklab, var(--fsp-gray) 78%, var(--fsp-ink));
@@ -85,6 +90,10 @@
   --c-line: color-mix(in oklab, var(--fsp-ink) 20%, var(--fsp-white));
   --c-line-soft: color-mix(in oklab, var(--fsp-ink) 10%, var(--fsp-white));
   --c-card-border: var(--c-line-soft);
+
+  --c-field: color-mix(in oklab, var(--fsp-ink) 2.5%, var(--fsp-white));
+  --c-field-border: color-mix(in oklab, var(--fsp-ink) 26%, var(--fsp-white));
+  --c-field-border-hover: color-mix(in oklab, var(--fsp-ink) 42%, var(--fsp-white));
 
   --c-ink: var(--fsp-ink);
   --c-muted: color-mix(in oklab, var(--fsp-ink) 66%, var(--fsp-white));

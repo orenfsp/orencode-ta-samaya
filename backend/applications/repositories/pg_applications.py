@@ -7,17 +7,18 @@ from uuid import UUID
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from infrastructure.contest import ContestModel
-from infrastructure.contest_application import ContestApplicationModel
-from infrastructure.contest_application_member import ContestApplicationMemberModel
+from infrastructure.contests.contest import ContestModel
+from infrastructure.participation.contest_application import ContestApplicationModel
+from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
 from infrastructure.enums import ApplicationCreator, ApplicationStatus, ContestStatus
-from infrastructure.user import UserModel
+from infrastructure.account.user import UserModel
 
 A = ContestApplicationModel
 M = ContestApplicationMemberModel
 
 
 def _fresh(statement: Select) -> Select:
+    """Включает перечитывание уже загруженных объектов для запроса."""
     return statement.execution_options(populate_existing=True)
 
 
@@ -29,33 +30,42 @@ class ApplicationQuery:
 
 
 class ApplicationRepository:
+    """Доступ к заявкам на соревнования в Postgres."""
+
     def __init__(self, db: AsyncSession) -> None:
+        """Сохраняет сессию БД."""
         self._db = db
 
     async def get(self, application_id: int) -> ContestApplicationModel | None:
+        """Возвращает заявку по id."""
         return await self._db.scalar(_fresh(select(A).where(A.id == application_id)))
 
     async def lock(self, application_id: int) -> ContestApplicationModel | None:
+        """Блокирует и возвращает заявку по id."""
         return await self._db.scalar(_fresh(select(A).where(A.id == application_id).with_for_update()))
 
     async def lock_many(self, application_ids: Sequence[int]) -> list[ContestApplicationModel]:
+        """Блокирует и возвращает несколько заявок по списку id."""
         items = await self._db.scalars(
             _fresh(select(A).where(A.id.in_(application_ids)).order_by(A.id).with_for_update())
         )
         return list(items.all())
 
     async def add(self, item: ContestApplicationModel) -> ContestApplicationModel:
+        """Добавляет новую заявку."""
         self._db.add(item)
         await self._db.flush()
         return item
 
     async def update(self, item: ContestApplicationModel, values: dict[str, Any]) -> ContestApplicationModel:
+        """Обновляет поля заявки указанными значениями."""
         for name, value in values.items():
             setattr(item, name, value)
         await self._db.flush()
         return item
 
     async def team_name_taken(self, contest_id: int, name: str, exclude_id: int | None) -> bool:
+        """Проверяет, занято ли название команды на соревновании другой неотозванной заявкой."""
         conditions = [
             A.contest_id == contest_id,
             func.lower(A.team_name) == name.lower(),
@@ -66,6 +76,7 @@ class ApplicationRepository:
         return bool(await self._db.scalar(select(func.count()).select_from(A).where(*conditions)))
 
     async def list_for_member(self, user_id: UUID) -> Sequence[ContestApplicationModel]:
+        """Возвращает заявки, в которых пользователь состоит участником, новые соревнования впереди."""
         member_of = select(M.application_id).where(M.user_id == user_id)
         items = await self._db.scalars(
             select(A)
@@ -76,6 +87,7 @@ class ApplicationRepository:
         return items.all()
 
     async def list_for_coach(self, user_id: UUID) -> Sequence[ContestApplicationModel]:
+        """Возвращает заявки, созданные тренером, новые соревнования впереди."""
         items = await self._db.scalars(
             select(A)
             .join(ContestModel, ContestModel.id == A.contest_id)
@@ -87,6 +99,7 @@ class ApplicationRepository:
     async def list_for_contest(
         self, query: ApplicationQuery, limit: int, offset: int
     ) -> tuple[Sequence[ContestApplicationModel], int]:
+        """Возвращает страницу заявок соревнования по статусам и поисковой строке с общим количеством."""
         conditions: list[Any] = [A.contest_id == query.contest_id, A.status.in_(query.statuses)]
         if query.search:
             pattern = f"%{query.search}%"
@@ -109,6 +122,7 @@ class ApplicationRepository:
         return items.all(), total or 0
 
     async def list_approved(self, contest_id: int) -> Sequence[ContestApplicationModel]:
+        """Возвращает одобренные заявки соревнования, отсортированные по названию команды."""
         items = await self._db.scalars(
             select(A)
             .where(A.contest_id == contest_id, A.status == ApplicationStatus.APPROVED)
@@ -119,6 +133,7 @@ class ApplicationRepository:
     async def contest_counts(
         self, organizer_id: UUID | None, limit: int, offset: int
     ) -> tuple[list[tuple[ContestModel, dict[ApplicationStatus, int]]], int]:
+        """Возвращает соревнования с заявками и количеством заявок по статусам, соревнования с ожидающими — первыми."""
         conditions: list[Any] = [A.status != ApplicationStatus.WITHDRAWN]
         if organizer_id is not None:
             conditions.append(ContestModel.organizer_id == organizer_id)
@@ -155,6 +170,7 @@ class ApplicationRepository:
         return [(item, counts[item.id]) for item in contests], total or 0
 
     async def open_contests(self, now: datetime, exclude_user_id: UUID | None) -> Sequence[ContestModel]:
+        """Возвращает соревнования с открытой регистрацией; при указанном пользователе исключает те, где он уже активен."""
         conditions: list[Any] = [
             ContestModel.status == ContestStatus.REGISTRATION_OPEN,
             ContestModel.registration_opens_at <= now,

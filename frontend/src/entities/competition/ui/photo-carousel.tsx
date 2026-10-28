@@ -14,6 +14,7 @@ export function PhotoCarousel({
   title,
   controls = false,
   fallback = null,
+  aspect = 'aspect-video',
   className,
 }: {
   photos: CompetitionFile[]
@@ -22,11 +23,14 @@ export function PhotoCarousel({
   controls?: boolean
   /** Что показать, если ни одно фото не загрузилось (файл удалён, нет сети) — вместо битой картинки с alt-текстом */
   fallback?: ReactNode
+  /** Пропорции кадра: одни и те же у фото, заливки и fallback, чтобы высота не прыгала */
+  aspect?: string
   className?: string
 }) {
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const [broken, setBroken] = useState<string[]>([])
+  const [loaded, setLoaded] = useState<string[]>([])
   const shown = photos.filter((photo) => !broken.includes(String(photo.id)))
   const count = shown.length
 
@@ -36,13 +40,20 @@ export function PhotoCarousel({
     return () => window.clearInterval(timer)
   }, [count, paused])
 
-  if (!count) return fallback
+  // Пока фото грузится — сразу заливка того же размера (и fallback поверх неё), без alt-текста и прыжка высоты
+  if (!count)
+    return fallback ? (
+      <div className={cn('relative overflow-hidden rounded-lg bg-surface-2', aspect, className)}>
+        {fallback}
+      </div>
+    ) : null
   const current = index % count
   const go = (offset: number) => setIndex((current + offset + count) % count)
+  const currentLoaded = loaded.includes(String(shown[current].id))
 
   return (
     <div
-      className={cn('group relative aspect-video overflow-hidden rounded-lg bg-surface-2', className)}
+      className={cn('group relative overflow-hidden rounded-lg bg-surface-2', aspect, className)}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -50,16 +61,18 @@ export function PhotoCarousel({
       aria-roledescription="галерея"
       aria-label={`Фото: ${title}`}
     >
+      {!currentLoaded && fallback}
       {shown.map((photo, position) => (
         <img
           key={photo.id}
           src={photo.url}
           alt={`${title}, фото ${position + 1} из ${count}`}
           loading="lazy"
+          onLoad={() => setLoaded((current) => [...current, String(photo.id)])}
           onError={() => setBroken((current) => [...current, String(photo.id)])}
           className={cn(
-            'absolute inset-0 size-full object-cover transition-opacity duration-700 ease-emphasized',
-            position === current ? 'opacity-100' : 'opacity-0',
+            'absolute inset-0 size-full object-cover text-transparent transition-opacity duration-700 ease-emphasized',
+            position === current && loaded.includes(String(photo.id)) ? 'opacity-100' : 'opacity-0',
           )}
         />
       ))}

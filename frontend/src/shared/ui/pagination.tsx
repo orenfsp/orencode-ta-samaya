@@ -24,7 +24,9 @@ export interface PaginationProps {
   page: number
   totalPages: number
   /** Адрес страницы: состояние списка живёт в URL, F5 и «Назад» работают */
-  hrefFor: (page: number) => string
+  hrefFor?: (page: number) => string
+  /** Без адреса: страница — в состоянии (таблица внутри окна, панели) */
+  onPage?: (page: number) => void
   /** Догрузка на телефоне. Нет — кнопка не показывается */
   onMore?: () => void
   moreLoading?: boolean
@@ -38,16 +40,50 @@ const cell =
  * На десктопе — номера страниц, на телефоне — «Показать ещё» (кит: без бесконечного скролла).
  * Оба контрола всегда в DOM, лишний прячет CSS: ветвление по ширине в разметке дёргало бы раскладку.
  */
-export function Pagination({ page, totalPages, hrefFor, onMore, moreLoading, className }: PaginationProps) {
+export function Pagination({
+  page,
+  totalPages,
+  hrefFor,
+  onPage,
+  onMore,
+  moreLoading,
+  className,
+}: PaginationProps) {
   if (totalPages <= 1) return null
   const hasPrev = page > 1
   const hasNext = page < totalPages
 
+  const go = (
+    target: number,
+    props: { className: string; label: string; current?: boolean },
+    body: ReactNode,
+  ) =>
+    hrefFor ? (
+      <Link
+        key={target}
+        to={hrefFor(target)}
+        aria-label={props.label}
+        aria-current={props.current ? 'page' : undefined}
+        className={props.className}
+      >
+        {body}
+      </Link>
+    ) : (
+      <button
+        key={target}
+        type="button"
+        onClick={() => onPage?.(target)}
+        aria-label={props.label}
+        aria-current={props.current ? 'page' : undefined}
+        className={props.className}
+      >
+        {body}
+      </button>
+    )
+
   const arrow = (target: number, enabled: boolean, label: string, icon: ReactNode) =>
     enabled ? (
-      <Link to={hrefFor(target)} aria-label={label} className={cn(cell, 'text-ink hover:bg-surface-3')}>
-        {icon}
-      </Link>
+      go(target, { label, className: cn(cell, 'text-ink hover:bg-surface-3') }, icon)
     ) : (
       <span aria-hidden="true" className={cn(cell, 'text-muted opacity-40')}>
         {icon}
@@ -56,7 +92,7 @@ export function Pagination({ page, totalPages, hrefFor, onMore, moreLoading, cla
 
   return (
     <div className={cn('flex flex-col items-center gap-3', className)}>
-      <nav aria-label="Страницы" className="hidden items-center gap-1 md:flex">
+      <nav aria-label="Страницы" className={cn('items-center gap-1', onMore ? 'hidden md:flex' : 'flex')}>
         {arrow(page - 1, hasPrev, 'Предыдущая страница', <IconChevronLeft size={18} />)}
         {pageRange(page, totalPages).map((item, index) =>
           item === GAP ? (
@@ -64,19 +100,19 @@ export function Pagination({ page, totalPages, hrefFor, onMore, moreLoading, cla
               {GAP}
             </span>
           ) : (
-            <Link
-              key={item}
-              to={hrefFor(item)}
-              aria-current={item === page ? 'page' : undefined}
-              aria-label={item === page ? `Текущая страница, ${item}` : `Страница ${item}`}
-              className={cn(
-                cell,
-                'active:scale-95',
-                item === page ? 'bg-primary text-white' : 'text-muted hover:bg-surface-3 hover:text-ink',
-              )}
-            >
-              {item}
-            </Link>
+            go(
+              item,
+              {
+                label: item === page ? `Текущая страница, ${item}` : `Страница ${item}`,
+                current: item === page,
+                className: cn(
+                  cell,
+                  'font-mono tabular-nums active:scale-95',
+                  item === page ? 'bg-primary text-white' : 'text-muted hover:bg-surface-3 hover:text-ink',
+                ),
+              },
+              item,
+            )
           ),
         )}
         {arrow(page + 1, hasNext, 'Следующая страница', <IconChevronRight size={18} />)}

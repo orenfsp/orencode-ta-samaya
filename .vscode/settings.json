@@ -14,14 +14,17 @@
   "files.exclude": {
     "**/__pycache__": true,
     "**/.pytest_cache": true,
-    "**/.venv": true
+    "**/.venv": true,
+    "**/.ruff_cache": true,
+    "docs": true,
+    ".vscode": true
   },
   "explorerSort.defaultSort": "name",
   "explorerSort.respectVsCodeExclude": true,
   "explorerSort.rules": [
     {
       "name": "Корень",
-      "pathPattern": "**/*",
+      "pathPattern": "*",
       "priorities": [
         {
           "condition": "name === 'manage'",
@@ -40,12 +43,20 @@
           "priority": 997
         },
         {
-          "condition": "name === 'docs'",
-          "priority": 996
+          "condition": "name === 'ТЗ ДЛЯ НАС.docx'",
+          "priority": -1
         },
         {
-          "condition": "name === '.vscode'",
-          "priority": 995
+          "condition": "name === 'STACK.md'",
+          "priority": -2
+        },
+        {
+          "condition": "name === 'PROGRESS.md'",
+          "priority": -3
+        },
+        {
+          "condition": "name === 'README.md'",
+          "priority": -4
         }
       ]
     },
@@ -54,104 +65,212 @@
       "pathPattern": "**/infrastructure/**",
       "priorities": [
         {
-          "condition": "name === 'base.py'",
+          "condition": "name === 'account'",
+          "priority": 800
+        },
+        {
+          "condition": "name === 'services'",
+          "priority": 799
+        },
+        {
+          "condition": "name === 'dictionaries'",
+          "priority": 798
+        },
+        {
+          "condition": "name === 'contests'",
+          "priority": 797
+        },
+        {
+          "condition": "name === 'participation'",
+          "priority": 796
+        },
+        {
+          "condition": "name === 'qualifications'",
+          "priority": 794
+        },
+        {
+          "condition": "name === 'squads'",
+          "priority": 795
+        },
+        {
+          "condition": "name === 'content'",
+          "priority": 793
+        },
+        {
+          "condition": "name === 'notifications'",
+          "priority": 792
+        },
+        {
+          "condition": "name === 'README.md'",
           "priority": 900
         },
         {
-          "condition": "name === 'enums.py'",
+          "condition": "name === 'base.py'",
           "priority": 899
         },
         {
-          "condition": "name === 'user.py'",
+          "condition": "name === 'enums.py'",
           "priority": 898
         },
         {
-          "condition": "name === 'user_role.py'",
+          "condition": "name === 'user.py'",
           "priority": 897
         },
         {
-          "condition": "name === 'audit_log.py'",
+          "condition": "name === 'user_role.py'",
           "priority": 896
         },
         {
-          "condition": "name === 'file.py'",
+          "condition": "name === 'wall_post.py'",
           "priority": 895
         },
         {
-          "condition": "name === 'dictionary_discipline.py'",
+          "condition": "name === 'wall_post_photo.py'",
           "priority": 894
         },
         {
-          "condition": "name === 'dictionary_municipality.py'",
+          "condition": "name === 'guardian_consent.py'",
           "priority": 893
         },
         {
-          "condition": "name === 'dictionary_organization_type.py'",
+          "condition": "name === 'login_device.py'",
           "priority": 892
         },
         {
-          "condition": "name === 'dictionary_academic_group.py'",
+          "condition": "name === 'audit_log.py'",
           "priority": 891
         },
         {
-          "condition": "name === 'dictionary_age_group.py'",
+          "condition": "name === 'file.py'",
           "priority": 890
         },
         {
-          "condition": "name === 'dictionary_contest_type.py'",
+          "condition": "name === 'dictionary_discipline.py'",
           "priority": 889
         },
         {
-          "condition": "name === 'dictionary_contest_level.py'",
+          "condition": "name === 'dictionary_municipality.py'",
           "priority": 888
         },
         {
-          "condition": "name === 'dictionary_contest_format.py'",
+          "condition": "name === 'dictionary_organization_type.py'",
           "priority": 887
         },
         {
-          "condition": "name === 'dictionary_rank_type.py'",
+          "condition": "name === 'dictionary_academic_group.py'",
           "priority": 886
         },
         {
-          "condition": "name === 'dictionary_judge_category.py'",
+          "condition": "name === 'dictionary_age_group.py'",
           "priority": 885
         },
         {
-          "condition": "name === 'dictionary_judge_position.py'",
+          "condition": "name === 'dictionary_contest_type.py'",
           "priority": 884
         },
         {
-          "condition": "name === 'calendar_event.py'",
+          "condition": "name === 'dictionary_contest_level.py'",
           "priority": 883
         },
         {
-          "condition": "name === 'contest.py'",
+          "condition": "name === 'dictionary_contest_format.py'",
           "priority": 882
         },
         {
-          "condition": "name === 'contest_age_group.py'",
+          "condition": "name === 'dictionary_rank_type.py'",
           "priority": 881
         },
         {
-          "condition": "name === 'contest_academic_group.py'",
+          "condition": "name === 'dictionary_judge_category.py'",
           "priority": 880
         },
         {
-          "condition": "name === 'contest_photo.py'",
+          "condition": "name === 'dictionary_judge_position.py'",
           "priority": 879
         },
         {
-          "condition": "name === 'contest_status_history.py'",
+          "condition": "name === 'contest.py'",
           "priority": 878
         },
         {
-          "condition": "name === 'contest_application.py'",
+          "condition": "name === 'contest_age_group.py'",
           "priority": 877
         },
         {
-          "condition": "name === 'contest_application_member.py'",
+          "condition": "name === 'contest_academic_group.py'",
           "priority": 876
+        },
+        {
+          "condition": "name === 'contest_photo.py'",
+          "priority": 875
+        },
+        {
+          "condition": "name === 'contest_application.py'",
+          "priority": 874
+        },
+        {
+          "condition": "name === 'contest_application_member.py'",
+          "priority": 873
+        },
+        {
+          "condition": "name === 'contest_result.py'",
+          "priority": 872
+        },
+        {
+          "condition": "name === 'document.py'",
+          "priority": 871
+        },
+        {
+          "condition": "name === 'judge_assignment.py'",
+          "priority": 870
+        },
+        {
+          "condition": "name === 'qualification.py'",
+          "priority": 869
+        },
+        {
+          "condition": "name === 'deadline_notice.py'",
+          "priority": 868
+        },
+        {
+          "condition": "name === 'judge_document.py'",
+          "priority": 867.5
+        },
+        {
+          "condition": "name === 'squad.py'",
+          "priority": 867
+        },
+        {
+          "condition": "name === 'squad_member.py'",
+          "priority": 866
+        },
+        {
+          "condition": "name === 'calendar_event.py'",
+          "priority": 865
+        },
+        {
+          "condition": "name === 'news_article.py'",
+          "priority": 864
+        },
+        {
+          "condition": "name === 'notification.py'",
+          "priority": 863
+        },
+        {
+          "condition": "name === 'notification_setting.py'",
+          "priority": 862
+        },
+        {
+          "condition": "name === 'outbox.py'",
+          "priority": 861
+        },
+        {
+          "condition": "name === 'telegram_link.py'",
+          "priority": 860
+        },
+        {
+          "condition": "name === 'bot_admin.py'",
+          "priority": 859
         }
       ]
     },
@@ -159,6 +278,10 @@
       "name": "Управление проектом",
       "pathPattern": "**/manage/**",
       "priorities": [
+        {
+          "condition": "name === 'README.md'",
+          "priority": 901
+        },
         {
           "condition": "name === 'Dockerfile'",
           "priority": 900
@@ -178,26 +301,6 @@
         {
           "condition": "name === 'bootstrap.py'",
           "priority": 896
-        },
-        {
-          "condition": "name === 'demo.py'",
-          "priority": 894
-        },
-        {
-          "condition": "name === 'demo_dictionaries.py'",
-          "priority": 893
-        },
-        {
-          "condition": "name === 'demo_calendar.py'",
-          "priority": 892
-        },
-        {
-          "condition": "name === 'demo_contests.py'",
-          "priority": 891
-        },
-        {
-          "condition": "name === 'demo_applications.py'",
-          "priority": 890
         }
       ]
     },
@@ -226,10 +329,6 @@
           "priority": 896
         },
         {
-          "condition": "name === 'pg_contest_history.py'",
-          "priority": 895
-        },
-        {
           "condition": "name === 'pg_applications.py'",
           "priority": 894
         },
@@ -244,6 +343,14 @@
         {
           "condition": "name === 'pg_files.py'",
           "priority": 891
+        },
+        {
+          "condition": "name === 'pg_notifications.py'",
+          "priority": 889
+        },
+        {
+          "condition": "name === 'pg_outbox.py'",
+          "priority": 888
         },
         {
           "condition": "name.startsWith('pg_')",
@@ -272,10 +379,6 @@
         {
           "condition": "name.startsWith('s3_')",
           "priority": 550
-        },
-        {
-          "condition": "name.startsWith('http_')",
-          "priority": 500
         }
       ]
     },
@@ -284,48 +387,96 @@
       "pathPattern": "**/backend/**",
       "priorities": [
         {
+          "condition": "name === 'README.md'",
+          "priority": 901
+        },
+        {
+          "condition": "name === 'RULES.md'",
+          "priority": 900.5
+        },
+        {
           "condition": "name === 'core'",
           "priority": 900
         },
         {
-          "condition": "name === 'files'",
+          "condition": "name === 'auth'",
           "priority": 899
         },
         {
-          "condition": "name === 'auth'",
+          "condition": "name === 'people'",
           "priority": 898
         },
         {
-          "condition": "name === 'audit'",
+          "condition": "name === 'consents'",
           "priority": 897
         },
         {
-          "condition": "name === 'dictionaries'",
+          "condition": "name === 'audit'",
           "priority": 896
         },
         {
-          "condition": "name === 'contests'",
+          "condition": "name === 'files'",
           "priority": 895
         },
         {
-          "condition": "name === 'applications'",
+          "condition": "name === 'dictionaries'",
           "priority": 894
         },
         {
-          "condition": "name === 'events'",
+          "condition": "name === 'contests'",
           "priority": 893
         },
         {
-          "condition": "name === 'main.py'",
+          "condition": "name === 'events'",
+          "priority": 892
+        },
+        {
+          "condition": "name === 'applications'",
           "priority": 891
         },
         {
-          "condition": "name === 'requirements.txt'",
+          "condition": "name === 'results'",
           "priority": 890
+        },
+        {
+          "condition": "name === 'documents'",
+          "priority": 889
+        },
+        {
+          "condition": "name === 'ratings'",
+          "priority": 888
+        },
+        {
+          "condition": "name === 'squads'",
+          "priority": 887
+        },
+        {
+          "condition": "name === 'qualifications'",
+          "priority": 886
+        },
+        {
+          "condition": "name === 'news'",
+          "priority": 885
+        },
+        {
+          "condition": "name === 'notifications'",
+          "priority": 884
+        },
+        {
+          "condition": "name === 'analytics'",
+          "priority": 883
+        },
+        {
+          "condition": "name === 'reports'",
+          "priority": 882.5
         },
         {
           "condition": "name === 'repositories'",
           "priority": 600
+        },
+        {
+          "condition": "name === 'clients'",
+          "priority": 599.5
         },
         {
           "condition": "name === 'domain'",
@@ -340,15 +491,15 @@
           "priority": 597
         },
         {
-          "condition": "name === 'read'",
+          "condition": "name === 'public'",
           "priority": 550
         },
         {
-          "condition": "name === 'manage'",
+          "condition": "name === 'read'",
           "priority": 549
         },
         {
-          "condition": "name === 'calendar'",
+          "condition": "name === 'manage'",
           "priority": 548
         },
         {
@@ -376,8 +527,12 @@
           "priority": 542
         },
         {
-          "condition": "name === 'public'",
+          "condition": "name === 'inbox'",
           "priority": 541
+        },
+        {
+          "condition": "name === 'log'",
+          "priority": 540
         },
         {
           "condition": "name === 'router.py'",
@@ -386,6 +541,14 @@
         {
           "condition": "name === 'schemas.py'",
           "priority": 499
+        },
+        {
+          "condition": "name === 'main.py'",
+          "priority": -1
+        },
+        {
+          "condition": "name === 'requirements.txt'",
+          "priority": -2
         }
       ]
     }

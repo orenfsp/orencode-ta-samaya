@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import {
   actionLabel,
   canCancel,
@@ -6,22 +6,16 @@ import {
   canEdit,
   isPublic,
   statusActions,
-  statusTitles,
-  useCompetitionHistory,
   useRatingDefaults,
-  verificationTitles,
   type CompetitionScope,
   type ManagedCompetition,
   type RatingPoint,
 } from '@/entities/competition'
 import { ApiError } from '@/shared/api'
 import { routes } from '@/shared/config'
-import { formatDateTime } from '@/shared/lib'
 import {
   Button,
   ConfirmModal,
-  ErrorState,
-  Field,
   FormAlert,
   IconArrowRight,
   IconButton,
@@ -34,16 +28,14 @@ import {
   IconTrash,
   Menu,
   Modal,
+  ReasonModal,
   Skeleton,
-  Textarea,
   type MenuItem,
 } from '@/shared/ui'
 import type { CompetitionActions } from '../model/use-competition-actions'
 import { RatingPointsEditor } from './rating-points-editor'
 
-type Dialog = 'cancel' | 'delete' | 'verify' | 'points' | 'reject' | 'revoke' | 'history' | null
-
-const valueTitles: Record<string, string> = { ...statusTitles, ...verificationTitles }
+type Dialog = 'cancel' | 'delete' | 'verify' | 'points' | 'reject' | 'revoke' | null
 
 /** Меню строки соревнования и все его диалоги. Пункты — только доступные в текущем статусе */
 export function CompetitionActions({
@@ -58,6 +50,10 @@ export function CompetitionActions({
   onEdit: () => void
 }) {
   const [dialog, setDialog] = useState<Dialog>(null)
+  // Последнее открытое окно остаётся в DOM, пока закрывается: так у него есть анимация выхода.
+  // Каждое новое открытие — новый ключ, чтобы форма начиналась с чистого листа
+  const [shown, setShown] = useState<{ dialog: Dialog; key: number }>({ dialog: null, key: 0 })
+  if (dialog && dialog !== shown.dialog) setShown({ dialog, key: shown.key + 1 })
   const admin = scope === 'admin'
   const verification = item.verification_status
   const close = () => setDialog(null)
@@ -116,16 +112,6 @@ export function CompetitionActions({
           },
         ]
       : []),
-    ...(admin
-      ? [
-          {
-            id: 'history',
-            label: 'История',
-            icon: <IconRefresh size={18} />,
-            onSelect: () => setDialog('history'),
-          },
-        ]
-      : []),
     ...(isPublic(item.status)
       ? [
           {
@@ -175,46 +161,46 @@ export function CompetitionActions({
         )}
       />
 
-      {dialog === 'cancel' && (
-        <ReasonModal
-          title={`Отменить «${item.title}»?`}
-          description="Соревнование останется в календаре со статусом «Отменено» и причиной"
-          label="Причина отмены"
-          confirmLabel="Отменить соревнование"
-          pending={actions.cancel.isPending}
-          error={actions.cancel.error}
-          onClose={close}
-          onSubmit={(reason) => actions.cancel.mutate({ item, reason }, { onSuccess: close })}
-        />
-      )}
-      {dialog === 'reject' && (
-        <ReasonModal
-          title="Отказать в верификации?"
-          description={`Организатор увидит причину и сможет запросить верификацию снова`}
-          label="Причина отказа"
-          confirmLabel="Отказать"
-          pending={actions.reject.isPending}
-          error={actions.reject.error}
-          onClose={close}
-          onSubmit={(reason) => actions.reject.mutate({ item, reason }, { onSuccess: close })}
-        />
-      )}
-      {(dialog === 'verify' || dialog === 'points') && (
+      <ReasonModal
+        open={dialog === 'cancel'}
+        tone="danger"
+        title={`Отменить «${item.title}»?`}
+        description="Соревнование останется в календаре со статусом «Отменено» и причиной"
+        label="Причина отмены"
+        confirmLabel="Отменить соревнование"
+        pending={actions.cancel.isPending}
+        error={actions.cancel.error}
+        onClose={close}
+        onSubmit={(reason) => actions.cancel.mutate({ item, reason }, { onSuccess: close })}
+      />
+      <ReasonModal
+        open={dialog === 'reject'}
+        title="Отказать в верификации?"
+        description={`Организатор увидит причину и сможет запросить верификацию снова`}
+        label="Причина отказа"
+        confirmLabel="Отказать"
+        pending={actions.reject.isPending}
+        error={actions.reject.error}
+        onClose={close}
+        onSubmit={(reason) => actions.reject.mutate({ item, reason }, { onSuccess: close })}
+      />
+      {(shown.dialog === 'verify' || shown.dialog === 'points') && (
         <PointsModal
+          key={shown.key}
+          open={dialog === shown.dialog}
           item={item}
-          mode={dialog}
-          pending={dialog === 'verify' ? actions.verify.isPending : actions.setPoints.isPending}
-          error={dialog === 'verify' ? actions.verify.error : actions.setPoints.error}
+          mode={shown.dialog}
+          pending={shown.dialog === 'verify' ? actions.verify.isPending : actions.setPoints.isPending}
+          error={shown.dialog === 'verify' ? actions.verify.error : actions.setPoints.error}
           onClose={close}
           onSubmit={(points) =>
-            (dialog === 'verify' ? actions.verify : actions.setPoints).mutate(
+            (shown.dialog === 'verify' ? actions.verify : actions.setPoints).mutate(
               { item, points },
               { onSuccess: close },
             )
           }
         />
       )}
-      {dialog === 'history' && <HistoryModal item={item} onClose={close} />}
 
       <ConfirmModal
         open={dialog === 'delete'}
@@ -237,71 +223,8 @@ export function CompetitionActions({
   )
 }
 
-function ReasonModal({
-  title,
-  description,
-  label,
-  confirmLabel,
-  pending,
-  error,
-  onClose,
-  onSubmit,
-}: {
-  title: string
-  description: string
-  label: string
-  confirmLabel: string
-  pending: boolean
-  error: Error | null
-  onClose: () => void
-  onSubmit: (reason: string) => void
-}) {
-  const [reason, setReason] = useState('')
-  const [local, setLocal] = useState<string>()
-  const server = error instanceof ApiError ? error : null
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (reason.trim().length < 3) return setLocal('Не короче 3 символов')
-    onSubmit(reason.trim())
-  }
-  return (
-    <Modal
-      open
-      onClose={pending ? () => {} : onClose}
-      title={title}
-      description={description}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={pending}>
-            Назад
-          </Button>
-          <Button type="submit" form="reason-form" variant="danger" loading={pending}>
-            {confirmLabel}
-          </Button>
-        </>
-      }
-    >
-      <form id="reason-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-        {error && !server?.field('reason') && <FormAlert>{error.message}</FormAlert>}
-        <Field label={label} required error={local ?? server?.field('reason')}>
-          <Textarea
-            autoFocus
-            autoGrow
-            minRows={3}
-            maxLength={500}
-            value={reason}
-            onChange={(event) => {
-              setReason(event.target.value)
-              setLocal(undefined)
-            }}
-          />
-        </Field>
-      </form>
-    </Modal>
-  )
-}
-
 function PointsModal({
+  open,
   item,
   mode,
   pending,
@@ -309,6 +232,7 @@ function PointsModal({
   onClose,
   onSubmit,
 }: {
+  open: boolean
   item: ManagedCompetition
   mode: 'verify' | 'points'
   pending: boolean
@@ -324,7 +248,7 @@ function PointsModal({
 
   return (
     <Modal
-      open
+      open={open}
       size="lg"
       onClose={pending ? () => {} : onClose}
       title={mode === 'verify' ? 'Верифицировать соревнование' : 'Баллы за места'}
@@ -353,40 +277,6 @@ function PointsModal({
           </>
         )}
       </div>
-    </Modal>
-  )
-}
-
-function HistoryModal({ item, onClose }: { item: ManagedCompetition; onClose: () => void }) {
-  const history = useCompetitionHistory(item.id, true)
-  return (
-    <Modal open onClose={onClose} size="lg" title="История" description={item.title}>
-      {history.isPending ? (
-        <Skeleton className="h-48 rounded-lg" />
-      ) : history.isError ? (
-        <ErrorState error={history.error} onRetry={() => history.refetch()} />
-      ) : (
-        <ol className="flex flex-col divide-y divide-line-soft">
-          {history.data.map((entry) => (
-            <li key={entry.id} className="flex flex-col gap-1 py-3">
-              <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-body text-ink">
-                  {entry.kind === 'verification' ? 'Верификация: ' : ''}
-                  {entry.from_value ? `${valueTitles[entry.from_value] ?? entry.from_value} → ` : ''}
-                  {valueTitles[entry.to_value] ?? entry.to_value}
-                </span>
-                <span className="font-mono text-xs text-muted">{formatDateTime(entry.created_at)}</span>
-              </span>
-              {entry.user && (
-                <span className="text-sm text-muted">
-                  {entry.user.last_name} {entry.user.first_name}
-                </span>
-              )}
-              {entry.comment && <span className="text-sm text-muted">{entry.comment}</span>}
-            </li>
-          ))}
-        </ol>
-      )}
     </Modal>
   )
 }

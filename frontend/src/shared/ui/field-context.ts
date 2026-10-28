@@ -27,9 +27,9 @@ export const controlSize: Record<FieldSize, string> = {
  * background-color в переходе нет: им Chrome красит автозаполнение, и переход возвращал бы его заливку.
  */
 export const controlClass = cn(
-  'w-full border border-line-soft bg-surface-2 text-ink placeholder:text-muted light:border-line',
+  'w-full border border-field-border bg-field text-ink placeholder:text-muted',
   'transition-[border-color,box-shadow] duration-150 ease-standard',
-  'hover:border-line focus:field-focus focus:outline-none',
+  'hover:border-field-border-hover focus:field-focus focus:outline-none',
   'aria-invalid:field-invalid',
-  'disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted disabled:hover:border-line-soft',
+  'disabled:cursor-not-allowed disabled:border-line-soft disabled:bg-surface disabled:text-muted',
 )

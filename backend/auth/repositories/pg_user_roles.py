@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from infrastructure.enums import Role, RoleStatus
-from infrastructure.user import UserModel
-from infrastructure.user_role import UserRoleModel
+from infrastructure.account.user import UserModel
+from infrastructure.account.user_role import UserRoleModel
 
 
 @dataclass(frozen=True)
@@ -20,18 +20,22 @@ class RoleRequestQuery:
 
 class UserRoleRepository:
     def __init__(self, db: AsyncSession) -> None:
+        """Сохраняет зависимость."""
         self._db = db
 
     async def find(self, user_id: UUID, role: Role) -> UserRoleModel | None:
+        """Возвращает заявку пользователя на роль, если она есть."""
         return await self._db.scalar(
             select(UserRoleModel).where(UserRoleModel.user_id == user_id, UserRoleModel.role == role)
         )
 
     async def add(self, user_id: UUID, role: Role, status: RoleStatus, at: datetime) -> None:
+        """Создаёт новую заявку на роль."""
         self._db.add(UserRoleModel(user_id=user_id, role=role, status=status, created_at=at))
         await self._db.flush()
 
     async def reopen(self, role_id: UUID, at: datetime) -> None:
+        """Переоткрывает отклонённую заявку, сбрасывая решение и дату создания."""
         await self._db.execute(
             update(UserRoleModel)
             .where(UserRoleModel.id == role_id)
@@ -39,6 +43,7 @@ class UserRoleRepository:
         )
 
     async def reset(self, role_id: UUID) -> None:
+        """Возвращает заявку в состояние ожидания, сбрасывая решение."""
         await self._db.execute(
             update(UserRoleModel)
             .where(UserRoleModel.id == role_id)
@@ -46,6 +51,7 @@ class UserRoleRepository:
         )
 
     async def mark_onboarding(self, user_id: UUID, role: Role) -> bool:
+        """Отмечает онбординг пройденным; False, если заявки на роль не нашлось."""
         result = await self._db.execute(
             update(UserRoleModel)
             .where(UserRoleModel.user_id == user_id, UserRoleModel.role == role)
@@ -54,6 +60,7 @@ class UserRoleRepository:
         return result.rowcount > 0
 
     async def lock(self, role_id: UUID) -> UserRoleModel | None:
+        """Блокирует строку заявки на роль построчной блокировкой для последующего изменения."""
         return await self._db.scalar(
             select(UserRoleModel).where(UserRoleModel.id == role_id).with_for_update().execution_options(
                 populate_existing=True
@@ -68,6 +75,7 @@ class UserRoleRepository:
         decided_by: UUID,
         at: datetime,
     ) -> None:
+        """Записывает решение по заявке на роль."""
         await self._db.execute(
             update(UserRoleModel)
             .where(UserRoleModel.id == role_id)
@@ -75,6 +83,7 @@ class UserRoleRepository:
         )
 
     async def get_request(self, role_id: UUID) -> UserRoleModel | None:
+        """Возвращает заявку на роль вместе с пользователем и решившим её модератором."""
         return await self._db.scalar(
             select(UserRoleModel)
             .where(UserRoleModel.id == role_id)
@@ -85,6 +94,7 @@ class UserRoleRepository:
     async def list_requests(
         self, query: RoleRequestQuery, limit: int, offset: int
     ) -> tuple[list[UserRoleModel], int]:
+        """Страница заявок на роли по фильтрам статуса, роли и поиска по имени или почте, с общим количеством."""
         conditions = [UserRoleModel.status.in_(query.statuses), UserRoleModel.role.in_(query.roles)]
         if query.search:
             pattern = f"%{query.search}%"
@@ -111,6 +121,7 @@ class UserRoleRepository:
         return list(models.unique()), total or 0
 
     async def count_by_role(self, status: RoleStatus, roles: frozenset[Role]) -> dict[Role, int]:
+        """Количество заявок с данным статусом по каждой из перечисленных ролей."""
         rows = await self._db.execute(
             select(UserRoleModel.role, func.count())
             .where(UserRoleModel.status == status, UserRoleModel.role.in_(roles))

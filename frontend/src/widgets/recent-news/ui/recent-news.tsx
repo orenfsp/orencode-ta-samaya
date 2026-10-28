@@ -4,7 +4,7 @@ import { Button, ErrorState, IconArrowRight, Skeleton } from '@/shared/ui'
 
 /** Три свежие статьи на главной. Новостей нет — блока нет: пустая секция на лендинге ничего не даёт */
 export function RecentNews() {
-  const news = useNews({}, 3)
+  const news = useNews({}, 4)
   if (news.isSuccess && !news.data.items.length) return null
 
   return (
@@ -16,15 +16,15 @@ export function RecentNews() {
         </Button>
       </div>
       {news.isPending ? (
-        <div className="grid gap-4 md:grid-cols-3">
-          {[1, 2, 3].map((id) => (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map((id) => (
             <Skeleton key={id} className="h-80 rounded-lg" />
           ))}
         </div>
       ) : news.isError ? (
         <ErrorState error={news.error} onRetry={() => news.refetch()} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {news.data.items.map((article) => (
             <NewsCard key={article.id} article={article} />
           ))}

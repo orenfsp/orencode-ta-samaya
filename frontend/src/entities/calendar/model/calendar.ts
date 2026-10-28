@@ -24,6 +24,9 @@ export interface CalendarItem {
   status_title: string
   is_verified: boolean
   updated_at: string
+  /** Только у соревнований */
+  discipline: string | null
+  groups: string[]
 }
 export interface CalendarPage {
   items: CalendarItem[]
@@ -87,11 +90,11 @@ export function useCalendarEvent(id: string) {
   })
 }
 
-export function useUpcomingEvents() {
+export function useUpcomingEvents(limit = 5) {
   const today = todayOrenburg()
   return useQuery({
-    queryKey: ['calendar', 'upcoming', today],
-    queryFn: ({ signal }) => calendarApi.list({ date_from: today, limit: 3 }, signal),
+    queryKey: ['calendar', 'upcoming', today, limit],
+    queryFn: ({ signal }) => calendarApi.list({ date_from: today, limit }, signal),
     staleTime: 60_000,
   })
 }

@@ -17,7 +17,8 @@ async def login(
     ip: ClientIp,
     accounts: AccountDep,
 ) -> LoginOut:
-    user = await accounts.authenticate(body.email, body.password, ip)
+    """Аутентифицирует пользователя и открывает сессию с куками."""
+    user = await accounts.authenticate(body.email, body.password, ip, request.headers.get("user-agent", ""))
     session = await accounts.start_session(request.cookies.get(SID_COOKIE), user)
     set_auth_cookies(response, session)
     return LoginOut.model_validate(user)

@@ -31,6 +31,7 @@ async def list_role_requests(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> RoleRequestPage:
+    """Список заявок на роли с фильтрами по статусу, роли и поиску."""
     if status_filter is not None:
         statuses = frozenset({status_filter})
     elif state == RequestState.PENDING:
@@ -45,6 +46,7 @@ async def list_role_requests(
 
 @router.get("/counts")
 async def count_role_requests(user: Federation, roles: RolesDep) -> RoleRequestCounts:
+    """Количество заявок в ожидании по каждой модерируемой роли."""
     return RoleRequestCounts(pending=await roles.count_pending())
 
 
@@ -55,6 +57,7 @@ async def approve_role_request(
     ip: ClientIp,
     roles: RolesDep,
 ) -> RoleRequestOut:
+    """Одобряет заявку на роль."""
     return RoleRequestOut.model_validate(await roles.approve(user.id, request_id, ip))
 
 
@@ -66,6 +69,7 @@ async def reject_role_request(
     ip: ClientIp,
     roles: RolesDep,
 ) -> RoleRequestOut:
+    """Отклоняет заявку на роль с указанием причины."""
     return RoleRequestOut.model_validate(await roles.reject(user.id, request_id, body.reason, ip))
 
 
@@ -77,5 +81,6 @@ async def reset_role_request(
     roles: RolesDep,
     body: Annotated[ResetIn | None, Body()] = None,
 ) -> RoleRequestOut:
+    """Возвращает решённую заявку на роль в состояние ожидания."""
     reason = body.reason if body else None
     return RoleRequestOut.model_validate(await roles.reset(user.id, request_id, reason, ip))

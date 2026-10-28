@@ -36,7 +36,6 @@
 - все соревнования + таб «Очередь верификации» (`verification_status=pending`);
 - та же форма + выбор организатора (`organizer_id`); при создании можно сразу задать баллы → сразу верифицировано;
 - «Верифицировать»: редактируемая таблица «место → баллы», по умолчанию из `GET /admin/contests/rating-points-defaults` по уровню соревнования; «Отказать» с причиной; «Снять верификацию»; «Изменить баллы» у верифицированного;
-- история статусов и верификации (`/…/history`).
 
 **Форма:**
 - списки — `GET /dictionaries/{key}` (disciplines, contest_types, contest_levels, contest_formats, municipalities, age_groups, academic_groups); группы — мультивыбор;

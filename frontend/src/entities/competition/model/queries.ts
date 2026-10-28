@@ -1,22 +1,24 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { flatPages, offsetPaging } from '@/shared/api'
 import { competitionApi } from '../api/competition-api'
 import type { CompetitionFilters, CompetitionScope } from './types'
 
 export const competitionKeys = {
   all: ['competitions'] as const,
-  public: (filters: CompetitionFilters, limit: number) => ['competitions', 'public', filters, limit] as const,
+  public: (filters: CompetitionFilters, step: number) => ['competitions', 'public', filters, step] as const,
   detail: (id: number) => ['competitions', 'detail', id] as const,
-  managed: (scope: CompetitionScope, filters: CompetitionFilters, limit: number) =>
-    ['competitions', scope, filters, limit] as const,
-  history: (id: number) => ['competitions', 'history', id] as const,
+  managed: (scope: CompetitionScope, filters: CompetitionFilters, step: number) =>
+    ['competitions', scope, filters, step] as const,
   ratingDefaults: ['competitions', 'rating-defaults'] as const,
 }
 
-/** Каталог: «Показать ещё» увеличивает limit, прежняя страница остаётся на экране, пока грузится новая */
-export function useCompetitions(filters: CompetitionFilters, limit: number) {
-  return useQuery({
-    queryKey: competitionKeys.public(filters, limit),
-    queryFn: ({ signal }) => competitionApi.list(filters, limit, 0, signal),
+/** Каталог: «Показать ещё» догружает следующую страницу по offset, при смене фильтров прежний список остаётся на экране */
+export function useCompetitions(filters: CompetitionFilters, step: number) {
+  return useInfiniteQuery({
+    queryKey: competitionKeys.public(filters, step),
+    queryFn: ({ pageParam, signal }) => competitionApi.list(filters, step, pageParam, signal),
+    ...offsetPaging,
+    select: flatPages,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   })
@@ -30,19 +32,14 @@ export function useCompetition(id: number) {
   })
 }
 
-export function useManagedCompetitions(scope: CompetitionScope, filters: CompetitionFilters, limit: number) {
-  return useQuery({
-    queryKey: competitionKeys.managed(scope, filters, limit),
-    queryFn: () => competitionApi.managed(scope, filters, limit),
+/** Соревнования организатора или федерации: страницы по offset, как в каталоге */
+export function useManagedCompetitions(scope: CompetitionScope, filters: CompetitionFilters, step: number) {
+  return useInfiniteQuery({
+    queryKey: competitionKeys.managed(scope, filters, step),
+    queryFn: ({ pageParam }) => competitionApi.managed(scope, filters, step, pageParam),
+    ...offsetPaging,
+    select: flatPages,
     placeholderData: keepPreviousData,
-  })
-}
-
-export function useCompetitionHistory(id: number, enabled: boolean) {
-  return useQuery({
-    queryKey: competitionKeys.history(id),
-    queryFn: () => competitionApi.history(id),
-    enabled,
   })
 }
 

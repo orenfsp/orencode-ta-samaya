@@ -1,23 +1,34 @@
 import { createBrowserRouter, Outlet, type RouteObject } from 'react-router'
 import { CabinetPage } from '@/pages/cabinet'
 import { CabinetAccountsPage } from '@/pages/cabinet-accounts'
-import { CabinetCompetitionsPage } from '@/pages/cabinet-competitions'
-import { CabinetMyContestsPage } from '@/pages/cabinet-my-contests'
-import { CabinetParticipantsPage } from '@/pages/cabinet-participants'
+import { CabinetRatingPage } from '@/pages/cabinet-rating'
+import { CabinetDocumentsPage } from '@/pages/cabinet-documents'
+import { CabinetJudgeAssignmentsPage } from '@/pages/cabinet-judge-assignments'
+import { CabinetQualificationPage } from '@/pages/cabinet-qualification'
+import { CabinetQualificationsReviewPage } from '@/pages/cabinet-qualifications-review'
 import { CalendarPage, EventPage } from '@/pages/calendar'
 import { CalendarAdminPage } from '@/pages/calendar-admin'
 import { CompetitionPage } from '@/pages/competition'
 import { CompetitionsPage } from '@/pages/competitions'
 import { DictionariesPage } from '@/pages/dictionaries'
+import { DocumentPage } from '@/pages/document'
 import { HomePage } from '@/pages/home'
+import { NotificationsPage } from '@/pages/notifications'
+import { AuditPage } from '@/pages/audit'
+import { CabinetAnalyticsPage } from '@/pages/cabinet-analytics'
 import { NewsArticlePage, NewsPage } from '@/pages/news'
 import { NewsAdminPage, NewsEditorPage } from '@/pages/news-admin'
 import { CookiesPage, PersonalDataPage } from '@/pages/legal'
 import { LoginPage } from '@/pages/login'
 import { NotFoundPage } from '@/pages/not-found'
+import { RatingsPage, RatingTablePage } from '@/pages/ratings'
+import { SquadsPage } from '@/pages/squads'
+import { PersonPage } from '@/pages/person'
 import { ForgotPasswordPage, ResetPasswordPage } from '@/pages/password-recovery'
 import { RegisterPage } from '@/pages/register'
+import { SettingsPage } from '@/pages/settings'
 import { routes } from '@/shared/config'
+import { CabinetCompetitionsRoute } from './cabinet-competitions-route'
 import { GuestOnly, RequireAuth, RequireCabinetRole } from './guards'
 import { AuthLayout, type AuthRouteHandle } from './layouts/auth-layout'
 import { CabinetIndexRedirect, CabinetLayout } from './layouts/cabinet-layout'
@@ -68,7 +79,7 @@ export const router = createBrowserRouter([
       {
         path: routes.forgotPassword,
         element: <ForgotPasswordPage />,
-        handle: showcase('Вернём доступ', 'Ссылка для нового пароля придёт на почту и действует один час'),
+        handle: showcase('Вернём доступ', 'Код для нового пароля придёт на почту и действует 15 минут'),
       },
       {
         path: routes.resetPassword,
@@ -92,6 +103,24 @@ export const router = createBrowserRouter([
         element: <CabinetLayout />,
         children: [
           { index: true, element: <CabinetPage /> },
+          { path: 'notifications', element: <NotificationsPage /> },
+          { path: 'settings', element: <SettingsPage /> },
+          {
+            path: 'analytics',
+            element: (
+              <RequireCabinetRole role="federation">
+                <CabinetAnalyticsPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'audit',
+            element: (
+              <RequireCabinetRole role="federation">
+                <AuditPage />
+              </RequireCabinetRole>
+            ),
+          },
           {
             path: 'news',
             element: (
@@ -119,24 +148,16 @@ export const router = createBrowserRouter([
           {
             path: 'competitions',
             element: (
-              <RequireCabinetRole role={['organizer', 'federation']}>
-                <CabinetCompetitionsPage />
+              <RequireCabinetRole role={['organizer', 'federation', 'athlete', 'coach']}>
+                <CabinetCompetitionsRoute />
               </RequireCabinetRole>
             ),
           },
           {
-            path: 'participants',
+            path: 'rating',
             element: (
-              <RequireCabinetRole role={['organizer', 'federation']}>
-                <CabinetParticipantsPage />
-              </RequireCabinetRole>
-            ),
-          },
-          {
-            path: 'my-contests',
-            element: (
-              <RequireCabinetRole role={['athlete', 'coach']}>
-                <CabinetMyContestsPage />
+              <RequireCabinetRole role="athlete">
+                <CabinetRatingPage />
               </RequireCabinetRole>
             ),
           },
@@ -157,6 +178,54 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: 'documents',
+            element: (
+              <RequireCabinetRole role={['athlete', 'coach', 'judge']}>
+                <CabinetDocumentsPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'category',
+            element: (
+              <RequireCabinetRole role="judge">
+                <CabinetQualificationPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'assignments',
+            element: (
+              <RequireCabinetRole role="judge">
+                <CabinetJudgeAssignmentsPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'rank',
+            element: (
+              <RequireCabinetRole role="athlete">
+                <CabinetQualificationPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'ranks',
+            element: (
+              <RequireCabinetRole role="coach">
+                <CabinetQualificationPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'qualifications',
+            element: (
+              <RequireCabinetRole role="federation">
+                <CabinetQualificationsReviewPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
             path: 'dictionaries/:key?',
             element: (
               <RequireCabinetRole role="federation">
@@ -173,12 +242,25 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { index: true, element: <HomePage /> },
+      {
+        path: routes.notifications,
+        element: (
+          <RequireAuth>
+            <NotificationsPage />
+          </RequireAuth>
+        ),
+      },
       { path: routes.news, element: <NewsPage /> },
       { path: `${routes.news}/:slug`, element: <NewsArticlePage /> },
       { path: routes.calendar, element: <CalendarPage /> },
       { path: `${routes.calendar}/:id`, element: <EventPage /> },
       { path: routes.competitions, element: <CompetitionsPage /> },
       { path: `${routes.competitions}/:id`, element: <CompetitionPage /> },
+      { path: routes.ratings, element: <RatingsPage /> },
+      { path: routes.ratingTable, element: <RatingTablePage /> },
+      { path: routes.squads, element: <SquadsPage /> },
+      { path: '/documents/:token', element: <DocumentPage /> },
+      { path: '/people/:id', element: <PersonPage /> },
       { path: routes.personalData, element: <PersonalDataPage /> },
       { path: routes.cookies, element: <CookiesPage /> },
       ...devRoutes,

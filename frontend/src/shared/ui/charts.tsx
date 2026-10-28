@@ -8,33 +8,101 @@ import { cn, formatNumber } from '@/shared/lib'
  * для скринридера рядом скрытая таблица. Метки и числа — цветом текста, не цветом серии.
  */
 
-/** Одно число с подписью: «Соревнований за год». delta — изменение к прошлому периоду */
+/**
+ * Изменение к прошлому периоду: «▲ 16 · +76%». Стрелка и знак несут смысл без цвета.
+ * pct = null — в прошлом периоде был ноль, процента нет. inverse — рост плох (отказы).
+ */
+export function DeltaMark({
+  diff,
+  pct,
+  unit = '',
+  inverse,
+  compact,
+  className,
+}: {
+  diff: number
+  pct?: number | null
+  /** В ячейке таблицы: только стрелка и процент (или разница, если процента нет) */
+  compact?: boolean
+  /** Единица разницы: « п. п.» у долей в процентах */
+  unit?: string
+  inverse?: boolean
+  className?: string
+}) {
+  if (diff === 0)
+    return (
+      <span className={cn('font-mono text-sm text-muted', className)}>{compact ? '—' : 'без изменений'}</span>
+    )
+  const up = diff > 0
+  const good = up !== Boolean(inverse)
+  const value = formatNumber(Math.abs(diff))
+  const label = `${up ? 'Рост' : 'Снижение'} на ${value}${unit}${pct != null ? `, ${formatNumber(Math.abs(pct))}%` : ''}`
+  return (
+    <span
+      aria-label={label}
+      className={cn(
+        'inline-flex items-baseline gap-1 font-mono text-sm whitespace-nowrap tabular-nums',
+        good ? 'text-primary-text' : 'text-live-text',
+        className,
+      )}
+    >
+      <span aria-hidden="true">
+        {compact ? (
+          <>
+            {up ? '▲' : '▼'} {pct != null ? `${formatNumber(Math.abs(pct))}%` : `${value}${unit}`}
+          </>
+        ) : (
+          <>
+            {up ? '▲' : '▼'} {value}
+            {unit}
+            {pct != null && (
+              <span className="text-muted">
+                {' · '}
+                {up ? '+' : '−'}
+                {formatNumber(Math.abs(pct))}%
+              </span>
+            )}
+          </>
+        )}
+      </span>
+    </span>
+  )
+}
+
+/** Одно число с подписью: «Соревнований за год». delta — изменение к прошлому периоду, deltaPct — оно же в процентах */
 export function StatTile({
   label,
   value,
+  unit = '',
   delta,
+  deltaPct,
+  deltaUnit,
+  inverse,
   hint,
   className,
 }: {
   label: string
   value: number | string
+  /** Единица у значения: «%» */
+  unit?: string
   delta?: number
+  deltaPct?: number | null
+  deltaUnit?: string
+  inverse?: boolean
   hint?: ReactNode
   className?: string
 }) {
   return (
-    <div className={cn('flex flex-col gap-2 rounded-lg border border-line-soft p-5', className)}>
+    <div
+      className={cn('flex min-w-0 flex-col gap-2 rounded-lg border border-line-soft p-4 sm:p-5', className)}
+    >
       <span className="text-sm text-muted">{label}</span>
-      <span className="flex items-baseline gap-3">
+      <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="font-mono text-h2 text-ink tabular-nums">
           {typeof value === 'number' ? formatNumber(value) : value}
+          {unit}
         </span>
-        {delta != null && delta !== 0 && (
-          <span className={cn('font-mono text-sm', delta > 0 ? 'text-primary-text' : 'text-live-text')}>
-            {delta > 0 ? '+' : '−'}
-            {formatNumber(Math.abs(delta))}
-          </span>
-        )}
+        {delta != null && <DeltaMark diff={delta} pct={deltaPct} unit={deltaUnit} inverse={inverse} />}
       </span>
       {hint && <span className="text-xs text-muted">{hint}</span>}
     </div>
@@ -109,54 +177,57 @@ export function ColumnChart({
   const max = Math.max(1, ...data.map((item) => item.value))
   const ticks = [max, Math.round(max / 2), 0]
   return (
-    <figure className={cn('flex flex-col gap-2', className)}>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3" aria-hidden="true">
-        <div
-          className="flex flex-col justify-between text-right font-mono text-xs text-muted"
-          style={{ height }}
-        >
-          {ticks.map((tick, index) => (
-            <span key={index} className="-translate-y-1/2 first:translate-y-0 last:translate-y-0">
-              {formatNumber(tick)}
-            </span>
-          ))}
-        </div>
-        <div className="relative flex items-end gap-0.5" style={{ height }}>
-          {/* Сетка — едва заметная, данные важнее */}
-          <span className="pointer-events-none absolute inset-x-0 top-0 border-t border-line-soft" />
-          <span className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-line-soft" />
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-line" />
-          {data.map((item, index) => (
-            <span
-              key={item.label}
-              data-tooltip={`${item.label}: ${formatNumber(item.value)}${unit}`}
-              className="group relative flex h-full flex-1 items-end justify-center"
-            >
+    <figure className={cn('flex min-w-0 flex-col gap-2', className)}>
+      {/* Много столбиков на узком экране — прокрутка внутри графика, а не всей страницы */}
+      <div className="-mx-1 overflow-x-auto px-1 pb-1" aria-hidden="true">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3" style={{ minWidth: data.length * 56 }}>
+          <div
+            className="flex flex-col justify-between text-right font-mono text-xs text-muted"
+            style={{ height }}
+          >
+            {ticks.map((tick, index) => (
+              <span key={index} className="-translate-y-1/2 first:translate-y-0 last:translate-y-0">
+                {formatNumber(tick)}
+              </span>
+            ))}
+          </div>
+          <div className="relative flex items-end gap-0.5" style={{ height }}>
+            {/* Сетка — едва заметная, данные важнее */}
+            <span className="pointer-events-none absolute inset-x-0 top-0 border-t border-line-soft" />
+            <span className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-line-soft" />
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-line" />
+            {data.map((item, index) => (
               <span
-                style={{ height: `${(item.value / max) * 100}%`, animationDelay: `${index * 30}ms` }}
+                key={item.label}
+                data-tooltip={`${item.label}: ${formatNumber(item.value)}${unit}`}
+                className="group relative flex h-full flex-1 items-end justify-center"
+              >
+                <span
+                  style={{ height: `${(item.value / max) * 100}%`, animationDelay: `${index * 30}ms` }}
+                  className={cn(
+                    'w-full max-w-10 origin-bottom animate-grow-up rounded-t-xs transition-colors duration-150',
+                    highlight == null || highlight === index ? 'bg-primary' : 'bg-primary/45',
+                    'group-hover:bg-primary-hover',
+                  )}
+                />
+              </span>
+            ))}
+          </div>
+          <span />
+          <div className="flex gap-0.5 pt-1.5">
+            {data.map((item, index) => (
+              <span
+                key={item.label}
                 className={cn(
-                  'w-full max-w-10 origin-bottom animate-grow-up rounded-t-xs transition-colors duration-150',
-                  highlight == null || highlight === index ? 'bg-primary' : 'bg-primary/45',
-                  'group-hover:bg-primary-hover',
+                  'flex-1 truncate text-center font-mono text-xs text-muted',
+                  // Подписи через одну, когда столбиков много — чтобы не налезали
+                  data.length > 12 && index % 2 === 1 && 'invisible',
                 )}
-              />
-            </span>
-          ))}
-        </div>
-        <span />
-        <div className="flex gap-0.5 pt-1.5">
-          {data.map((item, index) => (
-            <span
-              key={item.label}
-              className={cn(
-                'flex-1 truncate text-center font-mono text-xs text-muted',
-                // Подписи через одну, когда столбиков много — чтобы не налезали
-                data.length > 12 && index % 2 === 1 && 'invisible',
-              )}
-            >
-              {item.label}
-            </span>
-          ))}
+              >
+                {item.label}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
       <DataTable data={data} unit={unit} />

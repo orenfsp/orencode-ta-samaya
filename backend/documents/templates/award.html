@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Документы ФСП</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: "Roboto", sans-serif; color: #1B1C21; }
+  .page { position: relative; width: 297mm; height: 210mm; overflow: hidden; page-break-after: always; background: #FFFFFF; }
+  .page:last-child { page-break-after: auto; }
+
+  .band { position: absolute; left: 0; top: 0; bottom: 0; width: 7mm; background: #402FFF; }
+  .mark { position: absolute; right: -28mm; top: 78mm; width: 92mm; opacity: 0.07; }
+  .line { position: absolute; right: 18mm; top: 38mm; width: 46mm; }
+
+  .head { position: absolute; left: 24mm; right: 18mm; top: 14mm; height: 18mm; }
+  .logo { position: absolute; left: 0; top: 2mm; height: 12.5mm; }
+  .discipline { position: absolute; right: 0; top: 0; width: 18mm; height: 18mm; }
+
+  .main { position: absolute; left: 24mm; right: 70mm; top: 44mm; }
+  .title { font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 44pt; line-height: 1; letter-spacing: 0.06em; text-transform: uppercase; }
+  .title.medium { font-size: 32pt; }
+  .title.small { font-size: 24pt; letter-spacing: 0.04em; }
+  .place { display: inline-block; margin-top: 5mm; padding: 1.6mm 4mm; border-radius: 2mm; background: #402FFF; color: #FFFFFF; font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 15pt; }
+  .place.second { background: #1B1C21; }
+  .place.third { background: #FFFFFF; color: #EC1D35; border: 0.6mm solid #EC1D35; }
+  .place.other { background: #EDEDED; color: #1B1C21; }
+  .lead { margin-top: 7mm; font-size: 13pt; color: #5B5C62; }
+  .name { margin-top: 2mm; font-size: 30pt; font-weight: 500; line-height: 1.15; }
+  .name.long { font-size: 24pt; }
+  .team { margin-top: 2mm; font-size: 13pt; color: #5B5C62; }
+  .team b { color: #1B1C21; font-weight: 500; }
+  .text { margin-top: 5mm; font-size: 12.5pt; line-height: 1.45; white-space: pre-line; }
+  .athletes { margin-top: 2mm; font-size: 11.5pt; line-height: 1.45; color: #1B1C21; }
+  .contest { margin-top: 5mm; font-size: 12pt; line-height: 1.45; }
+  .contest .contest-title { font-weight: 500; }
+  .contest .meta { color: #5B5C62; }
+
+  .foot { position: absolute; left: 24mm; right: 18mm; bottom: 12mm; height: 24mm; font-size: 9.5pt; }
+  .check { position: absolute; left: 0; bottom: 0; height: 22mm; }
+  .qr { position: absolute; left: 0; bottom: 0; width: 22mm; height: 22mm; }
+  .qr svg { width: 22mm; height: 22mm; }
+  .facts { position: absolute; left: 27mm; bottom: 0; width: 120mm; color: #5B5C62; line-height: 1.5; }
+  .facts .mono { font-family: "JetBrains Mono", monospace; color: #1B1C21; }
+  .sign { position: absolute; right: 0; bottom: 0; width: 100mm; font-size: 10.5pt; }
+  .sign .position { color: #5B5C62; }
+  .sign .row { margin-top: 9mm; border-top: 0.3mm solid #C8C9CA; padding-top: 1.5mm; text-align: right; font-weight: 500; }
+</style>
+</head>
+<body>
+{% for page in pages %}
+{% set form = page.form %}{% set who = page.recipient %}{% set contest = page.contest %}
+<section class="page">
+  <div class="band"></div>
+  <img class="mark" src="fsp-mark-light.svg" alt="">
+  <img class="line" src="card-line.png" alt="">
+
+  <div class="head">
+    <img class="logo" src="fsp-logo.svg" alt="ФСП">
+    <img class="discipline" src="disciplines/{{ page.icon }}.svg" alt="">
+  </div>
+
+  <div class="main">
+    <div class="title{{ ' small' if form.title|length > 20 else ' medium' if form.title|length > 13 else '' }}">{{ form.title }}</div>
+    {% if who.place %}
+    <div class="place {{ 'first' if who.place == 1 else 'second' if who.place == 2 else 'third' if who.place == 3 else 'other' }}">{{ who.place }} место</div>
+    {% endif %}
+    {% if form.lead %}<div class="lead">{{ form.lead }}</div>{% endif %}
+    <div class="name{{ ' long' if who.name|length > 34 else '' }}">{{ who.name }}</div>
+    {% if who.team %}<div class="team">в составе команды <b>«{{ who.team }}»</b></div>{% endif %}
+    {% if who.role == 'judge' and who.position %}<div class="team">{{ who.position }}</div>{% endif %}
+    {% if form.text %}<div class="text">{{ form.text }}</div>{% endif %}
+    {% if who.athletes %}<div class="athletes">{{ who.athletes[:4]|join('; ') }}{% if who.athletes|length > 4 %} и ещё {{ who.athletes|length - 4 }}{% endif %}</div>{% endif %}
+    <div class="contest">
+      <div class="contest-title">{{ contest.title }}</div>
+      <div class="meta">{{ contest.discipline }} · {{ contest.dates }}{% if contest.place %} · {{ contest.place }}{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="check">
+      <div class="qr">{{ page.qr|safe }}</div>
+      <div class="facts">
+        <div>№ <span class="mono">{{ page.number }}</span> · выдан <span class="mono">{{ form.issued_on|ru_date }}</span></div>
+        <div>Подлинность — по QR-коду или на странице</div>
+        <div class="mono">{{ page.url }}</div>
+      </div>
+    </div>
+    {% if form.signer_name or form.signer_position %}
+    <div class="sign">
+      {% if form.signer_position %}<div class="position">{{ form.signer_position }}</div>{% endif %}
+      <div class="row">{{ form.signer_name or '' }}</div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endfor %}
+</body>
+</html>

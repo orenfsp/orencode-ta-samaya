@@ -15,6 +15,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   to?: string
   /** Адрес вне роутера: якорь на странице или файл с бэка (.xlsx, .pdf) */
   href?: string
+  /** Внешний сайт (Telegram, почтовый ящик): открывается в новой вкладке */
+  external?: boolean
 }
 
 export function Button({
@@ -26,6 +28,7 @@ export function Button({
   rightIcon,
   to,
   href,
+  external = false,
   className,
   children,
   disabled,
@@ -67,8 +70,9 @@ export function Button({
 
   if (href) {
     return (
-      <a href={href} className={classes}>
+      <a href={href} className={classes} {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}>
         {content}
+        {external && <span className="sr-only"> (откроется в новой вкладке)</span>}
       </a>
     )
   }

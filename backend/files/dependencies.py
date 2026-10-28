@@ -14,6 +14,7 @@ object_storage = ObjectRepository(settings)
 
 
 def get_files(db: DbSession, audit: Annotated[Audit, Depends(get_audit)]) -> Files:
+    """Собирает домен файлов со всеми его зависимостями."""
     return Files(UnitOfWork(db), FileRepository(db), object_storage, audit, settings)
 
 

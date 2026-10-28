@@ -31,9 +31,9 @@ export function Accordion({ items, className }: { items: AccordionItem[]; classN
                 aria-expanded={open}
                 aria-controls={panelId}
                 onClick={() => setOpenId(open ? null : item.id)}
-                className="group flex w-full items-center gap-4 py-5 text-left text-lead text-ink"
+                className="group flex w-full min-w-0 items-center gap-4 py-5 text-left text-lead text-ink"
               >
-                <span className="flex-1 transition-colors duration-150 group-hover:text-primary-text">
+                <span className="min-w-0 flex-1 transition-colors duration-150 group-hover:text-primary-text">
                   {item.title}
                 </span>
                 <IconChevronDown

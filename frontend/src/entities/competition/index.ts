@@ -20,7 +20,6 @@ export {
 export {
   competitionKeys,
   useCompetition,
-  useCompetitionHistory,
   useCompetitions,
   useManagedCompetitions,
   useRatingDefaults,
@@ -35,7 +34,6 @@ export type {
   CompetitionSort,
   CompetitionSummary,
   CompetitionStatus,
-  HistoryEntry,
   LevelPoints,
   ManagedCompetition,
   Page,
@@ -44,5 +42,5 @@ export type {
   Ref,
   VerificationStatus,
 } from './model/types'
-export { CompetitionCard } from './ui/competition-card'
+export { CompetitionCard, type CompetitionCardData } from './ui/competition-card'
 export { PhotoCarousel } from './ui/photo-carousel'

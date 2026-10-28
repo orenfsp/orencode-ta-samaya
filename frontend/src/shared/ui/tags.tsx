@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/lib'
-import { IconCalendar, IconShieldCheck, IconTrophy } from './icons'
+import { IconCalendar, IconShieldCheck, IconShieldX, IconTrophy } from './icons'
 
 /*
  * Метки — четыре вида, у каждого своя форма, чтобы их не путали:
@@ -120,7 +120,7 @@ export function VerifiedMark({
         className,
       )}
     >
-      <IconShieldCheck size={20} />
+      {state === 'rejected' ? <IconShieldX size={20} /> : <IconShieldCheck size={20} />}
     </span>
   )
 }

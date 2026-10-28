@@ -1,9 +1,19 @@
+import { personAvatar } from '@/entities/person'
 import { useState } from 'react'
 import { activeMembers, applicationTone, personName, type ModeratedApplication } from '@/entities/application'
 import { formatDate, formatDateTime } from '@/shared/lib'
-import { Button, Checkbox, IconButton, IconDots, IconRefresh, Menu, PersonLine, StatusTag } from '@/shared/ui'
+import {
+  Button,
+  Checkbox,
+  IconButton,
+  IconDots,
+  IconRefresh,
+  Menu,
+  PersonLine,
+  ReasonModal,
+  StatusTag,
+} from '@/shared/ui'
 import type { Moderation } from '../model/use-moderation'
-import { RejectModal } from './reject-modal'
 
 /**
  * Заявка в модерации: команда или человек, состав с датой рождения и группами на дату соревнования.
@@ -41,7 +51,7 @@ export function ModeratedRow({
   ]
 
   return (
-    <li className="flex flex-col gap-4 px-4 py-4 sm:px-5 2xl:flex-row 2xl:items-start 2xl:gap-5">
+    <li className="flex flex-col gap-4 px-4 py-4 sm:px-5">
       <div className="flex min-w-0 flex-1 gap-3">
         {pending ? (
           <Checkbox
@@ -72,6 +82,7 @@ export function ModeratedRow({
                 <li key={member.user.id}>
                   <PersonLine
                     size="sm"
+                    avatar={personAvatar(member.user.id)}
                     name={`${personName(member.user)}${member.is_captain ? ', капитан' : ''}`}
                     meta={memberMeta(member).filter(Boolean).join(' · ')}
                   />
@@ -82,65 +93,68 @@ export function ModeratedRow({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 pl-8 2xl:w-48 2xl:shrink-0 2xl:pl-0">
-        <StatusTag tone={applicationTone[item.status]}>{item.status_title}</StatusTag>
-        {item.decided_at && item.decided_by && (
-          <span className="text-sm text-muted">
-            {formatDateTime(item.decided_at)}, {item.decided_by.last_name}
-          </span>
-        )}
-        {item.status === 'rejected' && item.reject_reason && (
-          <span className="text-sm text-live-text">{item.reject_reason}</span>
-        )}
+      <div className="flex flex-wrap items-start justify-between gap-3 pl-8">
+        <div className="flex min-w-0 flex-col gap-1">
+          <StatusTag tone={applicationTone[item.status]}>{item.status_title}</StatusTag>
+          {item.decided_at && item.decided_by && (
+            <span className="text-sm text-muted">
+              {formatDateTime(item.decided_at)}, {item.decided_by.last_name}
+            </span>
+          )}
+          {item.status === 'rejected' && item.reject_reason && (
+            <span className="text-sm text-live-text">{item.reject_reason}</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {pending ? (
+            <>
+              <Button size="sm" loading={approving} onClick={() => moderation.approve.mutate([item.id])}>
+                Одобрить
+              </Button>
+              <Button size="sm" variant="ghost" disabled={approving} onClick={() => setRejecting(true)}>
+                Отклонить
+              </Button>
+            </>
+          ) : item.status === 'approved' || item.status === 'rejected' ? (
+            <Menu
+              align="end"
+              aria-label={`Действия: ${title}`}
+              items={[
+                {
+                  id: 'reset',
+                  label: 'Вернуть на рассмотрение',
+                  icon: <IconRefresh size={18} />,
+                  onSelect: () => moderation.reset.mutate(item.id),
+                },
+              ]}
+              trigger={(props) => (
+                <IconButton
+                  {...props}
+                  aria-label={`Действия: ${title}`}
+                  data-no-tooltip
+                  icon={<IconDots size={18} />}
+                  size="sm"
+                />
+              )}
+            />
+          ) : null}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 pl-8 2xl:w-52 2xl:shrink-0 2xl:justify-end 2xl:pl-0">
-        {pending ? (
-          <>
-            <Button size="sm" loading={approving} onClick={() => moderation.approve.mutate([item.id])}>
-              Одобрить
-            </Button>
-            <Button size="sm" variant="ghost" disabled={approving} onClick={() => setRejecting(true)}>
-              Отклонить
-            </Button>
-          </>
-        ) : item.status === 'approved' || item.status === 'rejected' ? (
-          <Menu
-            align="end"
-            aria-label={`Действия: ${title}`}
-            items={[
-              {
-                id: 'reset',
-                label: 'Вернуть на рассмотрение',
-                icon: <IconRefresh size={18} />,
-                onSelect: () => moderation.reset.mutate(item.id),
-              },
-            ]}
-            trigger={(props) => (
-              <IconButton
-                {...props}
-                aria-label={`Действия: ${title}`}
-                data-no-tooltip
-                icon={<IconDots size={18} />}
-                size="sm"
-              />
-            )}
-          />
-        ) : null}
-      </div>
-
-      {rejecting && (
-        <RejectModal
-          title="Отклонить заявку?"
-          description={`${title}. Участники увидят причину`}
-          pending={moderation.reject.isPending}
-          error={moderation.reject.error}
-          onClose={() => setRejecting(false)}
-          onSubmit={(reason) =>
-            moderation.reject.mutate({ ids: [item.id], reason }, { onSuccess: () => setRejecting(false) })
-          }
-        />
-      )}
+      <ReasonModal
+        open={rejecting}
+        label="Причина отказа"
+        confirmLabel="Отклонить"
+        title="Отклонить заявку?"
+        description={`${title}. Участники увидят причину`}
+        pending={moderation.reject.isPending}
+        error={moderation.reject.error}
+        onClose={() => setRejecting(false)}
+        onSubmit={(reason) =>
+          moderation.reject.mutate({ ids: [item.id], reason }, { onSuccess: () => setRejecting(false) })
+        }
+      />
     </li>
   )
 }

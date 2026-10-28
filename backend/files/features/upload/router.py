@@ -18,6 +18,7 @@ async def upload(
     ip: ClientIp,
     files: FilesDep,
 ) -> FileOut:
+    """Загружает файл текущего пользователя."""
     data = await file.read(settings.file_max_size_mb * 1024 * 1024 + 1)
     item = await files.upload(user.id, file.filename or "file", file.content_type, data, ip)
     return FileOut.model_validate(item)

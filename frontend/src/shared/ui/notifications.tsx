@@ -1,15 +1,17 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { cn } from '@/shared/lib'
 import { Button } from './button'
+import { ErrorState } from './empty-state'
 import { IconBell } from './icons'
 import { Popover } from './popover'
+import { Skeleton } from './skeleton'
 
 export interface NotificationItem {
   id: string
   title: string
   text?: string
-  /** Уже отформатированное время: «5 мин назад», «вчера, 18:20» */
+  /** Уже отформатированное время: «14:05», «27.10.2026, 14:05» */
   time: string
   unread?: boolean
   /** Куда ведёт уведомление: заявка, соревнование, решение по роли */
@@ -21,10 +23,13 @@ export function NotificationList({
   items,
   onOpen,
   empty = 'Новых уведомлений нет',
+  fullText = false,
 }: {
   items: NotificationItem[]
   onOpen?: (item: NotificationItem) => void
   empty?: string
+  /** На странице текст целиком, в попапе — две строки */
+  fullText?: boolean
 }) {
   if (!items.length) return <p className="px-4 py-8 text-center text-sm text-muted">{empty}</p>
   return (
@@ -40,10 +45,24 @@ export function NotificationList({
               )}
             />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className={cn('text-body', item.unread ? 'text-ink' : 'text-muted')}>{item.title}</span>
-              {item.text && <span className="line-clamp-2 text-sm text-muted">{item.text}</span>}
+              <span
+                className={cn('text-body [overflow-wrap:anywhere]', item.unread ? 'text-ink' : 'text-muted')}
+              >
+                {item.title}
+              </span>
+              {item.text && (
+                <span
+                  className={cn(
+                    'text-sm [overflow-wrap:anywhere] whitespace-pre-line text-muted',
+                    !fullText && 'line-clamp-2',
+                  )}
+                >
+                  {item.text}
+                </span>
+              )}
               <span className="font-mono text-xs text-muted">{item.time}</span>
             </span>
+            {item.unread && <span className="sr-only">(не прочитано)</span>}
           </>
         )
         const className = 'flex gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-hover-tint'
@@ -52,7 +71,6 @@ export function NotificationList({
             {item.to ? (
               <Link to={item.to} onClick={() => onOpen?.(item)} className={className}>
                 {body}
-                {item.unread && <span className="sr-only">(не прочитано)</span>}
               </Link>
             ) : (
               <button type="button" onClick={() => onOpen?.(item)} className={cn(className, 'w-full')}>
@@ -66,9 +84,43 @@ export function NotificationList({
   )
 }
 
+/** Скелетон ленты той же формы, что строки */
+export function NotificationListSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div aria-hidden="true" className="flex flex-col divide-y divide-line-soft">
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="flex gap-3 px-4 py-3">
+          <span className="mt-2 size-2 shrink-0" />
+          <span className="flex flex-1 flex-col gap-2">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-24" />
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Число непрочитанных на кнопке: маленькая красная метка, «9+» для больших чисел */
+export function UnreadMark({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'grid h-4 min-w-4 animate-pop-in place-items-center rounded-full bg-live px-1 font-mono text-[0.625rem] leading-none text-white',
+        className,
+      )}
+    >
+      {count > 9 ? '9+' : count}
+    </span>
+  )
+}
+
 /**
  * Колокольчик со счётчиком непрочитанных и лентой в попапе.
- * Данные и «прочитать» — снаружи (entities/notification), здесь только вид.
+ * Данные и «прочитать» — снаружи (features/notification-center), здесь только вид.
  */
 export function NotificationBell({
   items,
@@ -76,6 +128,11 @@ export function NotificationBell({
   onReadAll,
   allTo,
   tone = 'canvas',
+  unreadCount,
+  loading = false,
+  error,
+  onRetry,
+  onShow,
 }: {
   items: NotificationItem[]
   onOpen?: (item: NotificationItem) => void
@@ -83,10 +140,18 @@ export function NotificationBell({
   /** Страница со всеми уведомлениями */
   allTo?: string
   tone?: 'canvas' | 'paper'
+  /** Счётчик с сервера; без него считаются непрочитанные в items */
+  unreadCount?: number
+  loading?: boolean
+  error?: unknown
+  onRetry?: () => void
+  /** Попап открылся — время загрузить ленту */
+  onShow?: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const panelId = useId()
   const anchor = useRef<HTMLButtonElement>(null)
-  const unread = items.filter((item) => item.unread).length
+  const unread = unreadCount ?? items.filter((item) => item.unread).length
 
   return (
     <>
@@ -95,20 +160,21 @@ export function NotificationBell({
         type="button"
         aria-label={unread ? `Уведомления, непрочитанных: ${unread}` : 'Уведомления'}
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-controls={panelId}
+        onClick={() => {
+          if (!open) onShow?.()
+          setOpen((value) => !value)
+        }}
         className={cn(
           'relative grid size-10 shrink-0 pressable place-items-center rounded-md',
           tone === 'paper' ? 'text-on-paper hover:bg-paper-2' : 'text-ink hover:bg-hover-tint',
         )}
       >
         <IconBell size={20} />
-        {unread > 0 && (
-          <span className="absolute top-1 right-1 grid h-4 min-w-4 animate-pop-in place-items-center rounded-full bg-live px-1 font-mono text-[0.625rem] leading-none text-white">
-            {unread > 9 ? '9+' : unread}
-          </span>
-        )}
+        <UnreadMark count={unread} className="absolute top-1 right-1" />
       </button>
       <Popover
+        id={panelId}
         open={open}
         onClose={() => setOpen(false)}
         anchorRef={anchor}
@@ -124,13 +190,19 @@ export function NotificationBell({
           )}
         </div>
         <div className="max-h-[min(28rem,60vh)] overflow-y-auto">
-          <NotificationList
-            items={items}
-            onOpen={(item) => {
-              setOpen(false)
-              onOpen?.(item)
-            }}
-          />
+          {loading ? (
+            <NotificationListSkeleton />
+          ) : error ? (
+            <ErrorState error={error} onRetry={onRetry} />
+          ) : (
+            <NotificationList
+              items={items}
+              onOpen={(item) => {
+                setOpen(false)
+                onOpen?.(item)
+              }}
+            />
+          )}
         </div>
         {allTo && (
           <Link

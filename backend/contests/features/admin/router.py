@@ -12,7 +12,6 @@ from contests.features.admin.schemas import (
     CancelIn,
     ContestOut,
     ContestPage,
-    HistoryOut,
     LevelPointsOut,
     RatingPointOut,
     RatingPointsIn,
@@ -57,6 +56,7 @@ def admin_query(
     search: Annotated[str | None, Query(max_length=200)] = None,
     sort: Annotated[str | None, Query(pattern="^(date_desc|date_asc|created_desc|title)$")] = None,
 ) -> ContestQuery:
+    """Собирает параметры фильтра списка соревнований из query-параметров запроса."""
     return ContestQuery(
         statuses=frozenset({status_filter}) if status_filter else None,
         verification_status=verification_status,
@@ -84,12 +84,14 @@ async def list_all(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ContestPage:
+    """Возвращает страницу всех соревнований для федерации по фильтру."""
     items, total = await contests.list_all(query, limit, offset)
     return ContestPage(items=[ContestOut.model_validate(item) for item in items], total=total)
 
 
 @router.get("/rating-points-defaults", summary="Баллы за места по умолчанию для уровней")
 async def rating_points_defaults(user: Federation, contests: ContestDep) -> list[LevelPointsOut]:
+    """Возвращает баллы рейтинга по умолчанию за места для каждого уровня соревнований."""
     return [
         LevelPointsOut(
             level=RefOut.model_validate(level),
@@ -101,18 +103,15 @@ async def rating_points_defaults(user: Federation, contests: ContestDep) -> list
 
 @router.get("/{contest_id}", summary="Соревнование")
 async def get_one(contest_id: ContestId, user: Federation, contests: ContestDep) -> ContestOut:
+    """Возвращает соревнование по id."""
     return ContestOut.model_validate(await contests.get_for(user.id, True, contest_id))
-
-
-@router.get("/{contest_id}/history", summary="История статусов и верификации")
-async def history(contest_id: ContestId, user: Federation, contests: ContestDep) -> list[HistoryOut]:
-    return [HistoryOut.model_validate(item) for item in await contests.history(contest_id)]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, summary="Создать соревнование")
 async def create(
     body: Annotated[AdminContestIn, Body()], user: Federation, ip: ClientIp, contests: ContestDep
 ) -> ContestOut:
+    """Создаёт соревнование от имени федерации, можно с указанием организатора."""
     return ContestOut.model_validate(await contests.create(user.id, True, body.model_dump(), ip))
 
 
@@ -124,12 +123,14 @@ async def update(
     ip: ClientIp,
     contests: ContestDep,
 ) -> ContestOut:
+    """Обновляет указанные поля соревнования."""
     fields = body.model_dump(exclude_unset=True)
     return ContestOut.model_validate(await contests.update(user.id, True, contest_id, fields, ip))
 
 
 @router.delete("/{contest_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить соревнование")
 async def delete(contest_id: ContestId, user: Federation, ip: ClientIp, contests: ContestDep) -> None:
+    """Удаляет соревнование."""
     await contests.delete(user.id, True, contest_id, ip)
 
 
@@ -141,6 +142,7 @@ async def cancel(
     ip: ClientIp,
     contests: ContestDep,
 ) -> ContestOut:
+    """Отменяет соревнование с указанием причины."""
     item = await contests.transition(user.id, True, contest_id, "cancel", ip, body.reason)
     return ContestOut.model_validate(item)
 
@@ -153,6 +155,7 @@ async def verify(
     contests: ContestDep,
     body: Annotated[VerifyIn | None, Body()] = None,
 ) -> ContestOut:
+    """Верифицирует соревнование, задавая баллы рейтинга за места (или по умолчанию для уровня)."""
     points = [point.model_dump() for point in body.rating_points] if body and body.rating_points else None
     return ContestOut.model_validate(await contests.verify(user.id, contest_id, points, ip))
 
@@ -165,6 +168,7 @@ async def set_rating_points(
     ip: ClientIp,
     contests: ContestDep,
 ) -> ContestOut:
+    """Пытается изменить баллы рейтинга соревнования; на верифицированном соревновании всегда запрещено."""
     points = [point.model_dump() for point in body.rating_points]
     return ContestOut.model_validate(await contests.set_rating_points(user.id, contest_id, points, ip))
 
@@ -177,6 +181,7 @@ async def reject_verification(
     ip: ClientIp,
     contests: ContestDep,
 ) -> ContestOut:
+    """Отказывает в верификации соревнования с указанием причины."""
     item = await contests.reject_verification(user.id, contest_id, body.reason, ip)
     return ContestOut.model_validate(item)
 
@@ -185,13 +190,16 @@ async def reject_verification(
 async def revoke_verification(
     contest_id: ContestId, user: Federation, ip: ClientIp, contests: ContestDep
 ) -> ContestOut:
+    """Снимает верификацию с соревнования."""
     return ContestOut.model_validate(await contests.revoke_verification(user.id, contest_id, ip))
 
 
 def _add_action(path: str, title: str) -> None:
+    """Регистрирует POST-эндпоинт для простого перехода статуса соревнования по имени действия."""
     action = path.replace("-", "_")
 
     async def run(contest_id: ContestId, user: Federation, ip: ClientIp, contests: ContestDep) -> Any:
+        """Выполняет переход статуса соревнования и возвращает обновлённое соревнование."""
         return ContestOut.model_validate(await contests.transition(user.id, True, contest_id, action, ip))
 
     router.add_api_route(

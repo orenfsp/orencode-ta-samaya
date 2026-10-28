@@ -56,6 +56,7 @@ Block = Annotated[HeadingBlock | TextBlock | ImageBlock | FileBlock | LinkBlock,
 
 
 def _hashtags(values: list[str]) -> list[str]:
+    """Нормализует хэштеги: убирает #, приводит к нижнему регистру, проверяет длину и убирает дубли."""
     result: list[str] = []
     for value in values:
         tag = value.strip().lstrip("#").lower()
@@ -67,6 +68,7 @@ def _hashtags(values: list[str]) -> list[str]:
 
 
 def _values(values: dict[str, Any], blocks: list[Block] | None) -> dict[str, Any]:
+    """Сериализует блоки статьи в JSON-совместимый вид внутри словаря значений."""
     if "blocks" in values:
         values["blocks"] = [block.model_dump(mode="json") for block in blocks or []]
     return values
@@ -85,14 +87,17 @@ class ArticleIn(BaseModel):
     @field_validator("section", "summary")
     @classmethod
     def empty_as_null(cls, value: str | None) -> str | None:
+        """Превращает пустую строку в None."""
         return value or None
 
     @field_validator("hashtags")
     @classmethod
     def normalized(cls, values: list[str]) -> list[str]:
+        """Нормализует хэштеги статьи."""
         return _hashtags(values)
 
     def values(self) -> dict[str, Any]:
+        """Отдаёт поля статьи как словарь с сериализованными блоками."""
         return _values(self.model_dump(), self.blocks)
 
 
@@ -109,21 +114,25 @@ class ArticlePatch(BaseModel):
     @field_validator("section", "summary")
     @classmethod
     def empty_as_null(cls, value: str | None) -> str | None:
+        """Превращает пустую строку в None."""
         return value or None
 
     @field_validator("hashtags")
     @classmethod
     def normalized(cls, values: list[str] | None) -> list[str] | None:
+        """Нормализует хэштеги статьи, если они переданы."""
         return _hashtags(values) if values is not None else None
 
     @model_validator(mode="after")
     def nonnullable(self) -> Self:
+        """Не даёт сбросить в null поля, которые не могут быть пустыми при частичном обновлении."""
         for name in ("title", "blocks", "hashtags"):
             if name in self.model_fields_set and getattr(self, name) is None:
                 raise ValueError(f"Поле {name} не может быть пустым")
         return self
 
     def values(self) -> dict[str, Any]:
+        """Отдаёт только переданные поля статьи как словарь с сериализованными блоками."""
         return _values(self.model_dump(exclude_unset=True), self.blocks)
 
 
@@ -143,11 +152,6 @@ class ArticleOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     views: int
-
-    @field_validator("hashtags", mode="before")
-    @classmethod
-    def names(cls, values: list[Any]) -> list[str]:
-        return [value if isinstance(value, str) else value.name for value in values]
 
 
 class ArticlePage(BaseModel):

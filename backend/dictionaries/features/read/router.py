@@ -23,13 +23,16 @@ OUT_SCHEMAS: dict[str, type[DictionaryItemOut]] = {
 
 @router.get("", summary="Список справочников")
 async def catalog() -> list[DictionaryInfoOut]:
+    """Список всех справочников с их ключами и названиями."""
     return [DictionaryInfoOut(key=key, title=title) for key, title in Dictionary.catalog()]
 
 
 def _add_list_route(key: str, title: str) -> None:
+    """Регистрирует маршрут чтения активных записей справочника."""
     out = OUT_SCHEMAS.get(key, DictionaryItemOut)
 
     async def list_items(dictionary: DictionaryDep) -> Any:
+        """Список активных записей справочника."""
         return [out.model_validate(item) for item in await dictionary.list(key, include_archived=False)]
 
     router.add_api_route(

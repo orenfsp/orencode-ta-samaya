@@ -13,6 +13,7 @@ async def logout(
     ip: ClientIp,
     accounts: AccountDep,
 ) -> None:
+    """Закрывает сессию пользователя, если она есть, и удаляет куки."""
     if user is not None:
         await accounts.logout(user.sid, user.id, ip)
     clear_auth_cookies(response)

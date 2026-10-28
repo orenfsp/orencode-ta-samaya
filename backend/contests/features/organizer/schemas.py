@@ -25,10 +25,12 @@ Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, m
 
 
 def _empty_to_none(value: str | None) -> str | None:
+    """Превращает пустую строку в None."""
     return value or None
 
 
 def _required(value: object) -> object:
+    """Проверяет, что значение не None, иначе бросает ошибку валидации."""
     if value is None:
         raise ValueError("Обязательное поле")
     return value
@@ -127,6 +129,7 @@ class OrganizerOut(BaseModel):
     @computed_field
     @property
     def full_name(self) -> str:
+        """Собирает фамилию, имя и отчество организатора в одну строку."""
         return " ".join(part for part in (self.last_name, self.first_name, self.middle_name) if part)
 
 
@@ -143,6 +146,7 @@ class FileOut(BaseModel):
     @computed_field
     @property
     def url(self) -> str:
+        """Возвращает публичную ссылку на файл в S3 или путь к приватной раздаче через API."""
         if self.is_public:
             return f"{settings.s3_public_url}/{settings.s3_public_bucket}/{quote(self.object_key)}"
         return f"/api/v1/files/{self.id}"
@@ -193,21 +197,25 @@ class ContestOut(BaseModel):
     @computed_field
     @property
     def status_title(self) -> str:
+        """Возвращает человекочитаемое название статуса соревнования."""
         return CONTEST_STATUS_TITLES[self.status]
 
     @computed_field
     @property
     def participation_type_title(self) -> str:
+        """Возвращает человекочитаемое название типа участия."""
         return PARTICIPATION_TYPE_TITLES[self.participation_type]
 
     @computed_field
     @property
     def verification_title(self) -> str:
+        """Возвращает человекочитаемое название статуса верификации."""
         return VERIFICATION_STATUS_TITLES[self.verification_status]
 
     @computed_field
     @property
     def is_verified(self) -> bool:
+        """Проверяет, что соревнование прошло верификацию."""
         return self.verification_status == VerificationStatus.VERIFIED
 
 

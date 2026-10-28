@@ -15,7 +15,6 @@ import {
   Card,
   Checkbox,
   DateTimeInput,
-  Drawer,
   EmptyState,
   ErrorState,
   Field,
@@ -112,7 +111,8 @@ function EventEditor({
     })
   }
   return (
-    <Drawer
+    <Modal
+      size="md"
       open={open}
       onClose={save.isPending ? () => {} : onClose}
       onSubmit={submit}
@@ -196,7 +196,7 @@ function EventEditor({
           />
         </Field>
       </div>
-    </Drawer>
+    </Modal>
   )
 }
 

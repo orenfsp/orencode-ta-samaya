@@ -1,21 +1,7 @@
-import { cn } from '@/shared/lib'
+import { cn, disciplineIconName as iconFor } from '@/shared/lib'
 import { DisciplineIcon } from '@/shared/ui'
 import type { AnyDictionaryItem } from '../../model/types'
 import { VisualFrame, visualItemClass } from './visual-frame'
-
-// Официальные иконки дисциплин из public/brand (с главной fsp-russia.ru). Значения — свободный текст, сопоставляем по смыслу
-const icons: [RegExp, string][] = [
-  [/алгоритм|олимпиад/i, 'algorithmic'],
-  [/продукт|хакатон/i, 'product'],
-  [/безопасн|ctf|кибер/i, 'security'],
-  [/искусствен|машинн|(^|\s)ии($|\s)/i, 'ai'],
-  [/робот/i, 'robotics'],
-  [/беспилот|(^|\s)бас($|\s)|бпла|дрон/i, 'drones'],
-  [/квиз|викторин|интеллектуальн/i, 'quiz'],
-]
-
-// Без совпадения — общая иконка в том же стиле, а не буква в квадрате
-const iconFor = (name: string) => icons.find(([pattern]) => pattern.test(name))?.[1] ?? 'generic'
 
 /** Дисциплины плитками с фирменными иконками — так они выглядят на сайте федерации */
 export function DisciplineTiles({

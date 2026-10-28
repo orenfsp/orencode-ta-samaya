@@ -12,6 +12,7 @@ from news.repositories.red_news_views import NewsViewsRepository
 
 
 def get_news(db: DbSession, redis: RedisClient, files: FilesDep, audit: AuditDep) -> News:
+    """Собирает домен новостей для FastAPI Depends."""
     return News(NewsRepository(db), NewsViewsRepository(redis), files, UnitOfWork(db), audit)
 
 

@@ -13,6 +13,9 @@ export const DOCUMENT_ACCEPT =
   'application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx'
 export const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'
 
+/** Соревнование делит участников либо по возрасту, либо по учёбе */
+export type GroupKind = 'none' | 'age' | 'academic'
+
 export interface Draft {
   title: string
   description: string
@@ -25,6 +28,7 @@ export interface Draft {
   team_size_max: string
   municipality_id: string
   venue: string
+  group_kind: GroupKind
   age_group_ids: number[]
   academic_group_ids: number[]
   starts_on: string
@@ -58,6 +62,7 @@ export function toDraft(item: ManagedCompetition | undefined, organizerId: strin
     team_size_max: id(item?.team_size_max),
     municipality_id: id(item?.municipality?.id),
     venue: item?.venue ?? '',
+    group_kind: item?.age_groups.length ? 'age' : item?.academic_groups.length ? 'academic' : 'none',
     age_group_ids: item?.age_groups.map((group) => group.id) ?? [],
     academic_group_ids: item?.academic_groups.map((group) => group.id) ?? [],
     starts_on: item?.starts_on ?? '',
@@ -119,8 +124,8 @@ export function toInput(draft: Draft, admin: boolean, creating: boolean): Compet
     team_size_max: team ? num(draft.team_size_max) : null,
     municipality_id: draft.municipality_id ? Number(draft.municipality_id) : null,
     venue: draft.venue.trim() || null,
-    age_group_ids: draft.age_group_ids,
-    academic_group_ids: draft.academic_group_ids,
+    age_group_ids: draft.group_kind === 'age' ? draft.age_group_ids : [],
+    academic_group_ids: draft.group_kind === 'academic' ? draft.academic_group_ids : [],
     starts_on: draft.starts_on,
     ends_on: draft.ends_on,
     registration_opens_at: fromLocalInput(draft.registration_opens_at),

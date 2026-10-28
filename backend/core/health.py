@@ -18,6 +18,7 @@ class HealthOut(BaseModel):
 
 @router.get("/health")
 async def health(db: DbSession, redis: RedisClient) -> HealthOut:
+    """Проверяет доступность Postgres и Redis и возвращает общий статус."""
     try:
         await db.execute(text("SELECT 1"))
         db_ok = True

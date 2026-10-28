@@ -22,7 +22,7 @@
 - Настройки в `core/config.py`: `minio_endpoint`, `minio_public_url`, `minio_access_key`, `minio_secret_key`, `minio_public_bucket`, `minio_private_bucket`, `file_max_size_mb = 10`, `file_allowed_types` (jpeg, png, webp, pdf, docx, xlsx, zip), `file_signed_url_ttl_seconds = 300`.
 - Зависимости: `minio`, `python-multipart`. Клиент `minio` синхронный — вызовы оборачивать в `asyncio.to_thread`.
 
-### Модель `infrastructure/file.py` — `FileModel`
+### Модель `infrastructure/services/file.py` — `FileModel`
 | Поле | Тип |
 |---|---|
 | id | uuid |
@@ -54,7 +54,7 @@
 ## Часть 2. Новости
 
 ### Модели
-`infrastructure/news_article.py` — `NewsArticleModel`:
+`infrastructure/content/news_article.py` — `NewsArticleModel`:
 | Поле | Тип |
 |---|---|
 | id | uuid |
@@ -70,7 +70,7 @@
 | author_id | uuid fk users |
 | created_at, updated_at | timestamptz |
 
-`infrastructure/news_hashtag.py` — `NewsHashtagModel (id, name unique, lower)`, `infrastructure/news_article_hashtag.py` — таблица связи `news_article_hashtags (article_id, hashtag_id)`.
+Хэштеги хранятся в самой статье: `news_articles.hashtags` — массив строк в нижнем регистре, без повторов, по алфавиту. Фильтр по тегу — `hashtags @> {tag}`, список тегов с числом статей — `unnest` по опубликованным.
 
 ### Блоки статьи (конструктор)
 Валидируются в схемах фичи через discriminated union по полю `type`:
@@ -113,7 +113,7 @@
 - Репозиторий `repositories/red_news_views.py`.
 
 ### Демо-данные
-`manage/demo_news.py`: 4–5 статей (3 опубликованы, 1–2 черновика), 5–6 хэштегов, разные типы блоков. Картинки можно без файлов (блоки `text`, `heading`, `link`), либо загрузить пару заглушек в MinIO при сиде.
+`manage/seed/seed.sql`: 4–5 статей (3 опубликованы, 1–2 черновика), 5–6 хэштегов, разные типы блоков. Картинки можно без файлов (блоки `text`, `heading`, `link`), либо загрузить пару заглушек в MinIO при сиде.
 
 ---
 
@@ -125,3 +125,8 @@
 - Не-федерация на `/admin/news*` получает 403, аноним — 401.
 - Разделы «Файлы» и «Новости» добавлены в `docs/001_api_map.md` в формате остальных блоков.
 - pyright — 0 ошибок, контейнер собирается `python manage/fsp.py`.
+
+## Доработка (Andrey-5)
+- Адрес статьи — транслит заголовка; суффикс `-a1b2c3` добавляется только при совпадении, как в ТЗ.
+- `GET /news/{slug}` возвращает `views` уже с засчитанным просмотром.
+- В журнале действий статьи видны как объект «Статья» (`news_article`) со ссылкой на редактор.

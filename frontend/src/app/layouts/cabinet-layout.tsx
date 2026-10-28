@@ -1,8 +1,9 @@
-import { Navigate, Outlet, useNavigate, useParams } from 'react-router'
+import { Link, Navigate, Outlet, useNavigate, useParams } from 'react-router'
 import { roleLabels, roleStatusLabels, useLogout, useMe, type Role } from '@/entities/session'
 import { routes } from '@/shared/config'
 import { BrandLogo, Button } from '@/shared/ui'
 import { CabinetShell } from '@/widgets/cabinet-shell'
+import { NotificationCenter } from '@/features/notification-center'
 
 /**
  * Кабинет роли из адреса. Чужая или закрытая роль → в первый доступный кабинет,
@@ -37,7 +38,12 @@ export function CabinetIndexRedirect() {
   return (
     <div className="grid min-h-dvh place-items-center px-5">
       <div className="flex w-full max-w-md animate-rise flex-col gap-6">
-        <BrandLogo className="h-8 w-auto self-start" />
+        <div className="flex items-center justify-between gap-4">
+          <Link to={routes.home} aria-label="На главную">
+            <BrandLogo className="h-8 w-auto" />
+          </Link>
+          <NotificationCenter />
+        </div>
         <h1 className="text-h2 font-medium">Кабинет откроется после проверки</h1>
         <p className="text-body text-muted">
           Федерация проверит заявку на роль. Решение придёт уведомлением, а кабинет появится здесь.

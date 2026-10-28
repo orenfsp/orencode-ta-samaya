@@ -7,8 +7,13 @@ import {
   Checkbox,
   ColumnChart,
   DocumentSheet,
+  IconBell,
+  IconButton,
+  IconMenu,
   KindTag,
   NotificationBell,
+  NotificationList,
+  NotificationListSkeleton,
   PersonLine,
   PhotoGrid,
   PlaceMark,
@@ -17,11 +22,13 @@ import {
   SelectionBar,
   ShareBar,
   SignatureLine,
+  DeltaMark,
   StatTile,
   StatusTag,
   Timeline,
   TimelineItem,
   TimelineYear,
+  UnreadMark,
   type NotificationItem,
   type RosterMember,
 } from '@/shared/ui'
@@ -67,19 +74,24 @@ const ranking = people.map((name, index) => ({
 const notifications: NotificationItem[] = [
   {
     id: '1',
-    title: 'Заявка принята',
-    text: 'Первенство области по алгоритмическому программированию',
-    time: '5 мин назад',
+    title: 'Заявка одобрена',
+    text: 'Заявка на «Первенство Оренбургской области по алгоритмическому программированию» одобрена.',
+    time: '14:05',
     unread: true,
   },
   {
     id: '2',
-    title: 'Вас назначили судьёй',
-    text: 'Кубок Оренбуржья, заместитель главного судьи',
-    time: 'сегодня, 09:12',
+    title: 'Приглашение в команду',
+    text: 'Соколов Артём приглашает вас в команду «Байтики» на «Открытый турнир по информационной безопасности (CTF)». Подтвердите участие.',
+    time: '09:12',
     unread: true,
   },
-  { id: '3', title: 'Роль тренера подтверждена', time: 'вчера, 18:20' },
+  {
+    id: '3',
+    title: 'Роль подтверждена',
+    text: 'Федерация подтвердила роль «Тренер». Кабинет открыт.',
+    time: '08:40',
+  },
 ]
 
 const applications = [
@@ -176,9 +188,38 @@ export function FutureDemo() {
       </Section>
 
       <Section id="notifications" title="Уведомления" className="flex flex-col gap-6">
-        <Row label="Колокольчик в шапке и сайдбаре">
+        <Row label="Колокольчик в шапке сайта: лента, загрузка, ошибка">
           <NotificationBell items={notifications} onReadAll={() => {}} allTo="#notifications" />
+          <NotificationBell items={[]} unreadCount={12} loading />
+          <NotificationBell
+            items={[]}
+            error={new Error('Не удалось загрузить уведомления')}
+            onRetry={() => {}}
+          />
         </Row>
+        <Row label="Кабинет: число у пункта меню, на телефоне — точка у кнопки меню">
+          <span className="flex w-64 items-center gap-3 rounded-md px-3 py-2.5 text-body text-muted">
+            <IconBell size={18} />
+            Уведомления
+            <UnreadMark count={3} className="ml-auto" />
+          </span>
+          <span className="relative">
+            <IconButton aria-label="Открыть меню" icon={<IconMenu />} size="sm" />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1 right-1 size-2 rounded-full bg-live"
+            />
+          </span>
+        </Row>
+        <div className="flex flex-col gap-2">
+          <h3 className="font-mono text-sm text-muted">Сегодня</h3>
+          <div className="overflow-hidden rounded-lg border border-line-soft bg-surface-2">
+            <NotificationList fullText items={notifications} />
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-lg border border-line-soft bg-surface-2">
+          <NotificationListSkeleton />
+        </div>
       </Section>
 
       <Section
@@ -214,10 +255,18 @@ export function FutureDemo() {
       </Section>
 
       <Section id="analytics" title="Аналитика" className="flex flex-col gap-8">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <StatTile label="Участий за год" value={1284} delta={212} hint="к прошлому году" />
-          <StatTile label="Соревнований" value={37} delta={-3} />
-          <StatTile label="Обслужено как судья" value={9} />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          <StatTile label="Участий за год" value={1284} delta={212} deltaPct={19.8} hint="к прошлому году" />
+          <StatTile label="Соревнований" value={37} delta={-3} deltaPct={-7.5} />
+          <StatTile label="Удержание" value={64.2} unit="%" delta={3.1} deltaUnit=" п. п." />
+          <StatTile label="Без коллегии" value={4} delta={2} deltaPct={100} inverse />
+        </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          <DeltaMark diff={16} pct={76.2} />
+          <DeltaMark diff={-5} pct={-23.8} />
+          <DeltaMark diff={4} pct={null} />
+          <DeltaMark diff={3} pct={80} inverse />
+          <DeltaMark diff={0} />
         </div>
         <div className="grid gap-8 lg:grid-cols-2">
           <div className="flex flex-col gap-3">

@@ -1,6 +1,25 @@
 from enum import StrEnum
 
 
+class EmailStatus(StrEnum):
+    NOT_REQUIRED = "not_required"
+    PENDING = "pending"
+    SENDING = "sending"
+    SENT = "sent"
+    FAILED = "failed"
+
+
+class Channel(StrEnum):
+    EMAIL = "email"
+    TELEGRAM = "telegram"
+
+
+class BotAdminLevel(StrEnum):
+    MODERATOR = "moderator"
+    ADMIN = "admin"
+    OWNER = "owner"
+
+
 class Role(StrEnum):
     FEDERATION = "federation"
     ORGANIZER = "organizer"
@@ -98,4 +117,97 @@ MEMBER_CONFIRMATION_TITLES: dict[MemberConfirmation, str] = {
     MemberConfirmation.INVITED: "Приглашён",
     MemberConfirmation.CONFIRMED: "Подтвердил",
     MemberConfirmation.DECLINED: "Отказался",
+}
+
+
+class DocumentKind(StrEnum):
+    CERTIFICATE = "certificate"
+    DIPLOMA = "diploma"
+    GRAMOTA = "gramota"
+    THANKS = "thanks"
+    JUDGE_THANKS = "judge_thanks"
+    REFERENCE = "reference"
+
+
+DOCUMENT_KIND_TITLES: dict[DocumentKind, str] = {
+    DocumentKind.CERTIFICATE: "Сертификаты участников",
+    DocumentKind.DIPLOMA: "Дипломы призёров",
+    DocumentKind.GRAMOTA: "Грамоты",
+    DocumentKind.THANKS: "Благодарности тренерам",
+    DocumentKind.JUDGE_THANKS: "Благодарности судьям",
+    DocumentKind.REFERENCE: "Справки об участии",
+}
+
+
+class PageVisibility(StrEnum):
+    PUBLIC = "public"
+    REGISTERED = "registered"
+    PRIVATE = "private"
+
+
+class WallRole(StrEnum):
+    ATHLETE = "athlete"
+    COACH = "coach"
+    JUDGE = "judge"
+    ORGANIZER = "organizer"
+
+
+class QualificationKind(StrEnum):
+    JUDGE_CATEGORY = "judge_category"
+    RANK = "rank"
+
+
+class QualificationStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+    SUPERSEDED = "superseded"
+
+
+QUALIFICATION_KIND_TITLES: dict[QualificationKind, str] = {
+    QualificationKind.JUDGE_CATEGORY: "Судейская категория",
+    QualificationKind.RANK: "Спортивный разряд",
+}
+
+QUALIFICATION_STATUS_TITLES: dict[QualificationStatus, str] = {
+    QualificationStatus.PENDING: "На рассмотрении",
+    QualificationStatus.APPROVED: "Присвоено",
+    QualificationStatus.REJECTED: "Отказано",
+    QualificationStatus.WITHDRAWN: "Отозвано",
+    QualificationStatus.SUPERSEDED: "Заменено новым",
+}
+
+
+class ConsentStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+CONSENT_STATUS_TITLES: dict[ConsentStatus, str] = {
+    ConsentStatus.PENDING: "На проверке",
+    ConsentStatus.APPROVED: "Одобрено",
+    ConsentStatus.REJECTED: "Отклонено",
+}
+
+
+class CodeforcesStatus(StrEnum):
+    PENDING = "pending"
+    OK = "ok"
+    NOT_FOUND = "not_found"
+
+
+class JudgeDocumentKind(StrEnum):
+    NOTE = "note"
+    ACT = "act"
+    PROTOCOL = "protocol"
+    OTHER = "other"
+
+
+JUDGE_DOCUMENT_KIND_TITLES: dict[JudgeDocumentKind, str] = {
+    JudgeDocumentKind.NOTE: "Судейская записка",
+    JudgeDocumentKind.ACT: "Акт",
+    JudgeDocumentKind.PROTOCOL: "Протокол судьи",
+    JudgeDocumentKind.OTHER: "Другое",
 }

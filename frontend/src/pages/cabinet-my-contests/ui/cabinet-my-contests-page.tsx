@@ -1,102 +1,104 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import {
-  activeMembers,
-  applicationTone,
-  canManage,
-  isOpenForChanges,
-  personName,
-  useMyApplications,
-  type Application,
-  type ApplicationRole,
-} from '@/entities/application'
-import { CompetitionCard, teamSize } from '@/entities/competition'
+import { applicationTone, personName, type ApplicationRole } from '@/entities/application'
+import { CompetitionCard } from '@/entities/competition'
 import { useMe } from '@/entities/session'
 import {
   AcademicGroupForm,
-  ApplicationDrawer,
-  EnrollDrawer,
+  canApply,
+  ContestApplicationsModal,
+  isInvited,
   useApplicationActions,
-  type ApplicationActions,
+  useContestEntries,
+  type ContestEntry,
 } from '@/features/application-manage'
 import { routes } from '@/shared/config'
-import {
-  Button,
-  Card,
-  EmptyState,
-  ErrorState,
-  FormAlert,
-  IconPlus,
-  PageHeader,
-  Skeleton,
-  StatusTag,
-} from '@/shared/ui'
+import { Button, Card, EmptyState, ErrorState, FormAlert, PageHeader, Skeleton, StatusTag } from '@/shared/ui'
 import { CalendarAside } from '@/widgets/calendar-aside'
 
-const HIDDEN = ['withdrawn'] as const
-
-function ApplicationTile({
-  item,
+function EntryTile({
+  entry,
+  role,
   userId,
-  actions,
   onOpen,
 }: {
-  item: Application
+  entry: ContestEntry
+  role: ApplicationRole
   userId: string
-  actions: ApplicationActions
   onOpen: () => void
 }) {
-  const team = item.contest.participation_type === 'team'
-  const members = activeMembers(item)
-  const mine = item.members.find((member) => member.user.id === userId)
-  const invited = mine?.confirmation === 'invited' && mine.is_active && isOpenForChanges(item)
-  const size = teamSize(item.contest)
+  const coach = role === 'coach'
+  const { applications } = entry
+  const invited = applications.find((item) => isInvited(item, userId))
+  const single = !coach && applications.length === 1 ? applications[0] : null
+  const team = entry.contest.participation_type === 'team'
+  // У тренера на одно соревнование бывает много заявок: в карточке — сколько в каком статусе
+  const byStatus = coach
+    ? Object.entries(
+        applications.reduce<Record<string, number>>((acc, item) => {
+          acc[item.status_title] = (acc[item.status_title] ?? 0) + 1
+          return acc
+        }, {}),
+      )
+    : []
+
+  const label = invited
+    ? 'Ответить на приглашение'
+    : applications.length
+      ? coach
+        ? `Заявки · ${applications.length}`
+        : 'Заявка'
+      : coach
+        ? 'Записать спортсменов'
+        : 'Записаться'
+
   return (
     <CompetitionCard
-      competition={item.contest}
+      competition={entry.contest}
       extra={
-        <div className="flex flex-col gap-1.5 border-t border-line-soft pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <StatusTag tone={applicationTone[item.status]}>{item.status_title}</StatusTag>
-            {team && (
-              <span className="font-mono text-sm text-muted">
-                {members.length} из {size}
+        (applications.length > 0 || entry.problems.length > 0) && (
+          <div className="flex flex-col gap-1.5 border-t border-line-soft pt-4 text-sm">
+            {single && (
+              <>
+                <StatusTag tone={applicationTone[single.status]}>{single.status_title}</StatusTag>
+                {single.team_name && <span className="truncate text-body text-ink">{single.team_name}</span>}
+                {single.status === 'rejected' && single.reject_reason && (
+                  <span className="text-live-text">Отказ: {single.reject_reason}</span>
+                )}
+              </>
+            )}
+            {coach && (
+              <span className="text-muted">
+                {byStatus.map(([title, count]) => `${title}: ${count}`).join(' · ')}
               </span>
             )}
+            {invited && (
+              <span className="text-live-text">
+                {invited.creator.last_name} {invited.creator.first_name} зовёт вас в{' '}
+                {team ? 'команду' : 'заявку'}
+                {!team && invited.members[0] && invited.members[0].user.id !== userId
+                  ? ` (${personName(invited.members[0].user)})`
+                  : ''}
+              </span>
+            )}
+            {!applications.length && entry.problems.length > 0 && (
+              <span className="text-live-text">Не подходите: {entry.problems.join('; ')}</span>
+            )}
           </div>
-          {item.team_name && <span className="truncate text-body text-ink">{item.team_name}</span>}
-          {!team && !mine && item.members[0] && (
-            <span className="truncate text-body text-ink">
-              {personName(item.members[0].user)}
-              <span className="text-sm text-muted"> · {item.members[0].confirmation_title}</span>
-            </span>
-          )}
-          {invited && (
-            <span className="text-sm text-live-text">
-              {item.creator.last_name} {item.creator.first_name} зовёт вас в {team ? 'команду' : 'заявку'}
-            </span>
-          )}
-          {item.status === 'rejected' && item.reject_reason && (
-            <span className="text-sm text-live-text">Отказ: {item.reject_reason}</span>
-          )}
-        </div>
+        )
       }
       footer={
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {invited ? (
-            <Button
-              size="sm"
-              loading={actions.act.isPending && actions.act.variables?.item.id === item.id}
-              onClick={() => actions.act.mutate({ item, action: 'confirm' })}
-            >
-              Подтвердить участие
-            </Button>
-          ) : null}
-          <Button size="sm" variant={invited ? 'ghost' : 'secondary'} onClick={onOpen}>
-            {canManage(item, userId) && team && isOpenForChanges(item) ? 'Состав и заявка' : 'Заявка'}
+          <Button
+            size="sm"
+            variant={applications.length && !invited ? 'secondary' : 'primary'}
+            disabled={!applications.length && !canApply(entry, role)}
+            onClick={onOpen}
+          >
+            {label}
           </Button>
-          <Button size="sm" variant="text" to={routes.competition(item.contest.id)} className="ml-auto">
-            Соревнование
+          <Button size="sm" variant="text" to={routes.competition(entry.contest.id)} className="ml-auto">
+            Открыть
           </Button>
         </div>
       }
@@ -104,56 +106,36 @@ function ApplicationTile({
   )
 }
 
-/** «Мои соревнования»: спортсмен — свои заявки и приглашения, тренер — заявки за подопечных */
+/**
+ * «Соревнования» у спортсмена и тренера: открытая регистрация и всё, куда уже есть заявки, —
+ * по одной карточке на соревнование. Заявки, приглашения и запись — в окне карточки.
+ */
 export function CabinetMyContestsPage() {
   const role = useParams().role as ApplicationRole
   const coach = role === 'coach'
   const { data: me } = useMe()
-  const applications = useMyApplications(role)
+  const entries = useContestEntries(role, me?.id)
   const actions = useApplicationActions()
-  const [enroll, setEnroll] = useState(false)
-  // Каждое открытие «Записаться» — с выбора соревнования, без прошлого черновика
-  const [enrollKey, setEnrollKey] = useState(0)
   const [openId, setOpenId] = useState<number | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [modal, setModal] = useState({ open: false, key: 0 })
   const [editGroup, setEditGroup] = useState(false)
 
   if (!me) return null
-  const all = (applications.data ?? []).filter(
-    (item) => !HIDDEN.includes(item.status as (typeof HIDDEN)[number]),
-  )
-  const invitations = all.filter((item) =>
-    item.members.some(
-      (member) => member.user.id === me.id && member.confirmation === 'invited' && member.is_active,
-    ),
-  )
-  const rest = all.filter((item) => !invitations.includes(item))
-  const current = (applications.data ?? []).find((item) => item.id === openId) ?? null
-  const marks = rest
-    .filter((item) => item.status !== 'rejected')
-    .map((item) => ({
-      id: item.id,
-      title: item.team_name ? `${item.contest.title} · ${item.team_name}` : item.contest.title,
-      start: item.contest.starts_on,
-      end: item.contest.ends_on,
-      to: routes.competition(item.contest.id),
+  const current = entries.data.find((entry) => entry.contest.id === openId) ?? null
+  const marks = entries.data
+    .filter((entry) => entry.applications.some((item) => item.status !== 'rejected'))
+    .map(({ contest }) => ({
+      id: contest.id,
+      title: contest.title,
+      start: contest.starts_on,
+      end: contest.ends_on,
+      to: routes.competition(contest.id),
     }))
   const open = (id: number) => {
     setOpenId(id)
-    setDrawerOpen(true)
+    setModal((state) => ({ open: true, key: state.key + 1 }))
   }
-  const enrollButton = (
-    <Button
-      leftIcon={<IconPlus size={18} />}
-      onClick={() => {
-        setEnrollKey((current) => current + 1)
-        setEnroll(true)
-      }}
-    >
-      {coach ? 'Записать спортсменов' : 'Записаться'}
-    </Button>
-  )
-  const grid = 'grid gap-4 sm:grid-cols-2 2xl:grid-cols-3'
+  const grid = 'grid gap-4 md:grid-cols-2'
 
   return (
     <div className="flex flex-col gap-8">
@@ -161,15 +143,14 @@ export function CabinetMyContestsPage() {
         crumbs={[
           { label: 'Главная', to: routes.home },
           { label: 'Кабинет', to: routes.cabinetRole(role) },
-          { label: 'Мои соревнования' },
+          { label: 'Соревнования' },
         ]}
-        title="Мои соревнования"
+        title="Соревнования"
         description={
           coach
-            ? 'Заявки за подопечных. Каждый спортсмен подтверждает участие сам'
-            : 'Ваши заявки и приглашения в команды'
+            ? 'Открытая регистрация и заявки за подопечных. Каждый спортсмен подтверждает участие сам'
+            : 'Открытая регистрация, ваши заявки и приглашения в команды'
         }
-        actions={enrollButton}
       />
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_18rem]">
@@ -178,7 +159,7 @@ export function CabinetMyContestsPage() {
             (!me.academic_group || editGroup ? (
               <Card className="flex flex-col gap-4">
                 {!me.academic_group && (
-                  <FormAlert tone="info">Укажите академическую группу: без неё заявку не принять</FormAlert>
+                  <FormAlert tone="info">Укажите академическую группу. Без неё заявку не примут</FormAlert>
                 )}
                 <AcademicGroupForm onSaved={() => setEditGroup(false)} />
               </Card>
@@ -191,79 +172,54 @@ export function CabinetMyContestsPage() {
               </p>
             ))}
 
-          {applications.isPending ? (
+          {entries.isPending ? (
             <div className={grid}>
               {[1, 2].map((id) => (
                 <Skeleton key={id} className="h-96 rounded-xl" />
               ))}
             </div>
-          ) : applications.isError ? (
-            <ErrorState error={applications.error} onRetry={() => applications.refetch()} />
-          ) : !all.length ? (
+          ) : entries.isError ? (
+            <ErrorState error={entries.error} onRetry={() => entries.refetch()} />
+          ) : !entries.data.length ? (
             <Card>
               <EmptyState
-                title={coach ? 'Заявок за подопечных пока нет' : 'Вы ещё никуда не записаны'}
-                description="Записаться можно на соревнования с открытой регистрацией"
-                action={enrollButton}
+                title="Записаться сейчас некуда"
+                description="Здесь появятся соревнования, когда откроется регистрация"
+                action={
+                  <Button variant="secondary" to={routes.competitions}>
+                    Все соревнования
+                  </Button>
+                }
               />
             </Card>
           ) : (
-            <>
-              {invitations.length > 0 && (
-                <section className="flex flex-col gap-4" aria-label="Приглашения">
-                  <h2 className="text-h3 font-medium">
-                    Приглашения <span className="font-mono text-live-text">{invitations.length}</span>
-                  </h2>
-                  <div className={grid}>
-                    {invitations.map((item) => (
-                      <ApplicationTile
-                        key={item.id}
-                        item={item}
-                        userId={me.id}
-                        actions={actions}
-                        onOpen={() => open(item.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-              {rest.length > 0 && (
-                <section className="flex flex-col gap-4" aria-label="Заявки">
-                  {invitations.length > 0 && <h2 className="text-h3 font-medium">Заявки</h2>}
-                  <div className={grid}>
-                    {rest.map((item) => (
-                      <ApplicationTile
-                        key={item.id}
-                        item={item}
-                        userId={me.id}
-                        actions={actions}
-                        onOpen={() => open(item.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </>
+            <div className={grid}>
+              {entries.data.map((entry) => (
+                <EntryTile
+                  key={entry.contest.id}
+                  entry={entry}
+                  role={role}
+                  userId={me.id}
+                  onOpen={() => open(entry.contest.id)}
+                />
+              ))}
+            </div>
           )}
         </div>
 
         <CalendarAside marks={marks} />
       </div>
 
-      <EnrollDrawer
-        key={enrollKey}
-        open={enroll}
-        role={role}
-        actions={actions}
-        onClose={() => setEnroll(false)}
-      />
-      <ApplicationDrawer
-        item={current}
-        userId={me.id}
-        actions={actions}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      />
+      {current && (
+        <ContestApplicationsModal
+          key={modal.key}
+          entry={current}
+          role={role}
+          actions={actions}
+          open={modal.open}
+          onClose={() => setModal((state) => ({ ...state, open: false }))}
+        />
+      )}
     </div>
   )
 }

@@ -13,6 +13,7 @@ REGION = "us-east-1"
 
 class ObjectRepository:
     def __init__(self, settings: Settings) -> None:
+        """Создаёт клиентов MinIO для внутреннего доступа и для подписи публичных ссылок."""
         self._settings = settings
         self._client = Minio(
             settings.s3_endpoint,
@@ -32,29 +33,40 @@ class ObjectRepository:
 
     @property
     def public_bucket(self) -> str:
+        """Имя публичного бакета."""
         return self._settings.s3_public_bucket
 
     @property
     def private_bucket(self) -> str:
+        """Имя приватного бакета."""
         return self._settings.s3_private_bucket
 
     def bucket(self, is_public: bool) -> str:
+        """Имя бакета для публичных или приватных файлов."""
         return self.public_bucket if is_public else self.private_bucket
 
     def public_url(self, key: str) -> str:
+        """Прямая публичная ссылка на объект."""
         return f"{self._settings.s3_public_url}/{self.public_bucket}/{quote(key)}"
 
     async def put(self, is_public: bool, key: str, data: bytes, content_type: str) -> None:
+        """Загружает объект в соответствующий бакет."""
         await asyncio.to_thread(
             self._client.put_object, self.bucket(is_public), key, io.BytesIO(data), len(data), content_type
         )
 
     async def move(self, key: str, to_public: bool) -> None:
+        """Переносит объект между публичным и приватным бакетом."""
         source, target = self.bucket(not to_public), self.bucket(to_public)
         await asyncio.to_thread(self._client.copy_object, target, key, CopySource(source, key))
         await asyncio.to_thread(self._client.remove_object, source, key)
 
+    async def remove(self, is_public: bool, key: str) -> None:
+        """Удаляет объект из бакета."""
+        await asyncio.to_thread(self._client.remove_object, self.bucket(is_public), key)
+
     async def signed_url(self, key: str, filename: str, ttl_seconds: int) -> str:
+        """Подписанная временная ссылка на приватный объект со скачиванием под указанным именем."""
         disposition = f"inline; filename*=UTF-8''{quote(filename)}"
         return await asyncio.to_thread(
             self._signer.presigned_get_object,
@@ -65,6 +77,7 @@ class ObjectRepository:
         )
 
     async def ensure_buckets(self, attempts: int = 60) -> None:
+        """Создаёт публичный и приватный бакеты, если их ещё нет; повторяет попытки, пока MinIO не поднимется."""
         for attempt in range(attempts):
             try:
                 for bucket in (self.public_bucket, self.private_bucket):

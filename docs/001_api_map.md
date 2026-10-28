@@ -350,9 +350,17 @@
 **Что происходит:**
 1. Проверяется счётчик `forgot:{email}:counter`: не больше 3 запросов в час. Сверх лимита — молча 202, ничего не делаем.
 2. Ищется активный пользователь. Если не найден — молча 202 (не раскрываем, есть ли такой email).
-3. Генерируется токен (32 байта urlsafe). В Redis кладётся `pwreset:{sha256(token)}:token` → `user_id` с TTL 1 час. Предыдущие токены этого пользователя не отзываем — каждый живёт свой час.
-4. Ссылка `{FRONTEND_URL}/reset-password?token=...` пишется в лог приложения уровнем INFO (`docker logs fsp`). Когда подключим SMTP — она уйдёт письмом, контракт не изменится.
+3. Генерируется код из 6 цифр: `code:reset:{user_id}:token` (хэш, TTL 15 мин), повторная отправка не чаще раза в 60 с (`:cooldown`). Раньше срока — молча 202, письмо не уходит.
+4. Код уходит письмом «Код для сброса пароля» (очередь `outbox`, локально — Mailpit). В лог и аудит не пишется.
 5. Аудит `auth.password_reset_requested` (только если пользователь найден).
+
+### `POST /auth/password/verify`
+
+**Доступ:** публично. **Тело:** `{"email": "athlete@example.test", "code": "123456"}` — пробелы в коде допускаются.
+
+**Ответ 200** `{"reset_token": "…"}` — одноразовый токен на 10 минут для `/reset`.
+
+**Ошибки:** 400 `invalid_code`, в `fields.code` — «Неверный код. Осталось попыток: N». После 5 ошибок код сгорает: «Код больше не действует. Запросите новый». Неизвестная почта — тот же 400.
 
 ### `POST /auth/password/reset`
 
@@ -381,8 +389,9 @@
 4. Пароль хешируется и сохраняется.
 5. Закрываются **все** сессии пользователя (`user_sessions:{user_id}`), включая текущую, если была.
 6. Счётчик неудачных входов по этому email сбрасывается.
-7. Аудит `auth.password_reset`.
-8. Пользователь не логинится автоматически — фронт отправляет его на страницу входа.
+7. Почта считается подтверждённой, уходит письмо «Пароль изменён».
+8. Аудит `auth.password_reset`.
+9. Пользователь не логинится автоматически — фронт отправляет его на страницу входа.
 
 ---
 
@@ -703,7 +712,6 @@
 | GET | `/admin/contests` | все; фильтры как в календаре (без `period`) + `status`, `verification_status`, `organizer_id`, `sort`. Очередь: `?verification_status=pending` — по времени запроса |
 | GET | `/admin/contests/rating-points-defaults` | `[{level: {id, name}, rating_points}]` — баллы по умолчанию для формы верификации |
 | GET | `/admin/contests/{id}` | карточка |
-| GET | `/admin/contests/{id}/history` | `[{id, kind: status\|verification, from_value, to_value, comment, created_at, user}]` |
 | POST | `/admin/contests` | создать (своё или за организатора через `organizer_id`) |
 | PATCH | `/admin/contests/{id}` | правка; верификацию не сбрасывает |
 | DELETE | `/admin/contests/{id}` | как у организатора |
@@ -828,6 +836,161 @@
 
 `GET /contests/{id}/participants` → `{items: [{team_name, members: [{last_name, first_name, middle_name}]}], total_people}` — только одобренные.
 
+
+
+---
+
+## Область `people`: страница человека и лента
+
+Правила видимости и ленты — [011_tz_people_certificates.md](011_tz_people_certificates.md).
+
+### Страница `PersonOut`
+
+```json
+{
+  "id": "…",
+  "name": "Соколов Артём Игоревич",
+  "last_name": "Соколов",
+  "first_name": "Артём",
+  "middle_name": "Игоревич",
+  "birth_date": "2006-03-01",
+  "academic_group": {"id": 4, "name": "Студенты"},
+  "avatar_url": null,
+  "roles": ["athlete"],
+  "is_owner": false,
+  "masked": false
+}
+```
+
+- `roles` — подтверждённые роли из `athlete`, `coach`, `judge`, `organizer`. Сотрудник ФСП показывается как `organizer`.
+- Страница открыта всем, вход не нужен. Несовершеннолетнего посторонний видит с `masked: true`: `name` — «Имя Ф.», `last_name`, `middle_name`, `birth_date` и `avatar_url` — `null`. Владелец и федерация видят всё.
+
+| Метод | Путь | Доступ | Тело / query | Ответ |
+|---|---|---|---|---|
+| GET | `/people/{id}` | публично | — | `PersonOut`; нет подтверждённых ролей → 404 |
+| GET | `/people/{id}/avatar` | публично | — | 302 на файл фото (кеш 5 минут); 404 — фото нет или несовершеннолетний для постороннего |
+| GET | `/people/{id}/wall` | публично | `role=athlete\|coach\|organizer`, `limit` 1–50, `offset` | `{items: [{contest: {id, title, discipline, contest_level, contest_format, participation_type, starts_on, ends_on, status}, team_name, athletes, place, disqualified, post}], total}` |
+| PATCH | `/me/page` | сессия + csrf | `{avatar_file_id?}`; `null` убирает аватар | `PersonOut` |
+| PUT | `/me/wall/{role}/{contest_id}` | сессия + csrf | `{text?, photo_ids[] до 10, is_hidden}` | `{id, contest_id, text, is_hidden}` |
+| PATCH | `/admin/wall-posts/{id}` | роль `federation` | `{hidden_by_federation}` | `{id, hidden_by_federation}` |
+
+`post`: `{id, text, photos: [{id, url}], is_hidden, hidden_by_federation}` или `null`, если владелец ещё ничего не дописал.
+
+- Лента по роли: спортсмен — одобренные заявки, где он в составе; тренер — одобренные заявки, которые он подал (`athletes` — сколько подопечных); организатор — свои соревнования. `place`: у спортсмена — его место, у тренера — лучшее место подопечных, `null` — мест ещё нет; `disqualified` — спортсмен дисквалифицирован. Без черновиков, архива и отменённых, по дате начала, новые сверху.
+- Скрытый пост (`is_hidden` или `hidden_by_federation`) видят только владелец и федерация, остальным соревнование в ленте не показывается.
+- Ошибки `PUT`: 403 — нет такой подтверждённой роли или соревнования нет в ленте; 422 `photo_ids` — чужой файл или не изображение.
+
+---
+
+## Справки с QR
+
+Справки выпускаются движком документов — раздел «Область `documents`» ниже. Таблица `certificates` и `/verify/{token}` убраны.
+
+
+---
+
+## Codeforces в профиле
+
+Справочно: хэндл и рейтинг Codeforces показываются на странице человека и ни на что в системе не влияют, в рейтинг спортсменов ФСП не входят. Владение хэндлом не проверяется, уникальности нет.
+
+| Метод | Путь | Доступ | Тело | Ответ |
+|---|---|---|---|---|
+| PUT | `/me/codeforces` | сессия + csrf | `{handle}` — латиница, цифры, `_`, `-`, `.`, до 24 символов | блок `codeforces`; сразу пробует обновить рейтинг. Неверный формат → 422 `handle` |
+| DELETE | `/me/codeforces` | сессия + csrf | — | 204 |
+
+Блок `codeforces` в `GET /me` и `GET /people/{id}`:
+
+```json
+{"handle": "tourist", "url": "https://codeforces.com/profile/tourist", "rating": 3500, "max_rating": 4000, "rank": "legendary grandmaster", "status": "ok", "updated_at": "2026-10-28T10:00:00Z"}
+```
+
+- `status`: `pending` — ещё не обновляли, `ok`, `not_found` — хэндла нет на Codeforces. У `ok` без раундов `rating` пустой.
+- Новый хэндл — `pending`, рейтинг, максимум и ранг сбрасываются. Убрать хэндл — все поля `null`. Изменения пишутся в журнал как `profile.update`.
+- Воркер в процессе API: при старте и раз в час, `user.info` пачками по 300, между запросами не меньше 2 с. Несуществующий хэндл помечается `not_found` и убирается из пачки, остальные обновляются. Codeforces недоступен — значения не трогаем, ждём следующего часа. Настройки `FSP_CODEFORCES_*`.
+
+---
+
+## Уведомления
+
+ТЗ и каталог событий — [006_tz_notifications_audit.md](006_tz_notifications_audit.md). Все пути требуют сессию, изменяющие — ещё и CSRF. Только уведомления текущего пользователя.
+
+| Метод | Путь | Результат |
+|---|---|---|
+| GET | `/notifications?unread_only=false&limit=20&offset=0` | `{items, total}`, новые сверху |
+| GET | `/notifications/unread-count` | `{count}` |
+| POST | `/notifications/{id}/read` | 204, повторно тоже 204 |
+| POST | `/notifications/read-all` | 204 |
+
+`limit` 1–100. Чужой или несуществующий id — 404, без сессии — 401, неверный CSRF — 403.
+
+Элемент: `id`, `type`, `title`, `text`, `link` (внутренний путь или `null`), `is_read`, `created_at`, `email_status` (`not_required|pending|sent|failed`), `email_sent_at`. Очередь писем через API не выдаётся.
+
+| `type` | Кому | Письмо |
+|---|---|---|
+| `role.requested` | федерация | — |
+| `role.approved`, `role.rejected`, `role.reset` | владелец роли | да |
+| `contest.verification_requested` | федерация | — |
+| `contest.verified`, `contest.verification_rejected`, `contest.verification_revoked` | организатор | да |
+| `contest.cancelled` | участники и тренеры живых заявок | да |
+| `application.invited` | приглашённый спортсмен | — |
+| `application.member_declined` | капитан или тренер — автор заявки | — |
+| `application.submitted` | организатор соревнования | — |
+| `application.approved`, `application.rejected`, `application.reset` | участники заявки и тренер — автор | да |
+| `certificate.revoked` | владелец справки | да |
+
+`auth.password_reset` — только письмо, в ленту не попадает. Инициатор действия уведомлений о себе не получает.
+
+Безопасность (всегда в кабинет, на почту и в Telegram, отключить нельзя): `auth.password_changed`, `auth.new_device`, `auth.email_changed` (ещё и на старый адрес), `system.test` — проверка доставки. Письма-уведомления о решениях уходят только на подтверждённую почту.
+
+---
+
+## Почта, Telegram и настройки уведомлений
+
+ТЗ — [011_tz_mail_telegram.md](011_tz_mail_telegram.md). Сессия, изменяющие — с CSRF.
+
+| Метод | Путь | Результат |
+|---|---|---|
+| POST | `/me/email/verify/send` | 204 — новый код подтверждения; раньше 60 с — 429 с `Retry-After`; уже подтверждена — 409 |
+| POST | `/me/email/verify` `{code}` | 204; неверный код — 400 `invalid_code` |
+| POST | `/me/email/change` `{new_email, password}` | 204 — код на новый адрес; неверный пароль — 422, занятый адрес — 409 `email_taken` |
+| POST | `/me/email/change/confirm` `{code}` | 204; почта заменена и подтверждена, все сессии закрыты, ответ ставит новую сессию |
+| GET | `/me/notification-settings` | `{items: [{group, label, description, email, telegram, locked}]}` |
+| PUT | `/me/notification-settings` `{items: [{group, channel, enabled}]}` | та же матрица; `security` не меняется |
+| POST | `/me/notifications/test` | 204 — тестовое уведомление во все подключённые каналы |
+| GET | `/me/telegram` | `{available, bot, linked, username, linked_at, mailpit_url}` |
+| POST | `/me/telegram/link` | `{url}` — `https://t.me/<bot>?start=<токен на 10 мин>`; без токена бота на сервере — 409 |
+| DELETE | `/me/telegram` | 204 |
+
+В `/me` — поле `email_verified`. Группы: `security`, `roles`, `contests`, `applications`, `moderation`.
+
+### Администраторы Telegram-бота (только федерация)
+
+| Метод | Путь | Результат |
+|---|---|---|
+| GET | `/admin/telegram/admins` | `{my_level, can_manage, levels: [{code, label, rights}], items: [{user_id, full_name, email, level, linked, granted_by, created_at}]}` |
+| POST | `/admin/telegram/admins` `{email, level}` | 204; только владелец; назначить можно только подтверждённого сотрудника федерации |
+| PATCH | `/admin/telegram/admins/{user_id}` `{level}` | 204; только владелец; последнего владельца не понизить — 409 |
+| DELETE | `/admin/telegram/admins/{user_id}` | 204; только владелец; последнего владельца не снять — 409 |
+
+Уровни: `moderator` — очередь и решения по ролям в боте; `admin` — плюс статистика и рассылка; `owner` — плюс управление администраторами.
+
+---
+
+## Журнал действий
+
+Только федерация: остальным 403, без сессии 401. API изменения и удаления нет.
+
+| Метод | Путь | Результат |
+|---|---|---|
+| GET | `/admin/audit?q=&user_id=&action=&object_type=&date_from=&date_to=&limit=20&offset=0` | `{items, total}`, новые сверху |
+| GET | `/admin/audit/catalog` | `{actions: [{code, label}], objects: [{code, label}]}` — все действия и типы объектов для фильтров |
+
+- `q` — поиск автора по email и ФИО (до 100 символов), `user_id` — точный автор.
+- `date_from`, `date_to` (`YYYY-MM-DD`) — целые дни по Оренбургу, обратный диапазон — 422.
+- Элемент: `id`, `created_at`, `user: {id, full_name, email} | null`, `action`, `action_label`, `object_type`, `object_label`, `object_id`, `payload`, `ip`.
+- Ключи `payload` с паролями, токенами, секретами и cookie вырезаются; значения `token=…` в строках скрываются.
+- Изменения полей лежат в `payload.changes` (соревнования) или `payload.values` (справочники) в виде `{поле: {old, new}}`; смена статуса — `from` / `to`.
+
 ---
 
 ## Новости
@@ -890,3 +1053,171 @@
 - Файлы статьи в публичном бакете, пока она опубликована; убранные из статьи становятся приватными.
 - Первая публикация ставит `published_at`, повторная его не меняет.
 - Аудит: `news.create`, `news.update`, `news.publish`, `news.unpublish`, `news.archive`, `news.restore`.
+
+---
+
+## Область `results`: места соревнования
+
+ТЗ — [012_tz_results_rating_documents.md](012_tz_results_rating_documents.md). Одна строка на спортсмена: место и баллы; команда — одно место и одни баллы на всех участников. `place: null` — дисквалификация.
+
+### Публично
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| GET | `/contests/{id}/results` | `{participation_type, is_verified, items: [{place, points, team_name, athletes: [{id, full_name}]}]}`; дисквалифицированные внизу; непубличный статус → 404 |
+
+### Организатор (`/organizer/...`, только свои) и федерация (`/admin/...`, любые)
+
+| Метод | Путь | Тело | Ответ |
+|---|---|---|---|
+| GET | `/contests/{id}/results` | — | `{contest_id, status, participation_type, editable, items: [{application_id, team_name, athletes, entered, place}]}` — все одобренные заявки |
+| PUT | `/contests/{id}/results` | `{items: [{application_id, place}]}` | то же; места пересоздаются целиком |
+| GET | `/contests/{id}/results/protocol.xlsx` | — | файл протокола |
+
+Правила:
+- Вносить можно в `in_progress` и `completed`, иначе 409 `invalid_status`.
+- Каждая одобренная заявка ровно один раз → иначе 422 `items`. Места без повторов и пропусков, подряд с 1; иначе 422 `items`. Команда — одно место на всех участников.
+- Баллы — по `rating_points` верифицированного соревнования, места вне таблицы и дисквалификация — 0. Верификация пересчитывает баллы внесённых мест, снятие верификации обнуляет.
+- Уведомление `results.entered` спортсменам с новым или изменённым местом. Аудит `results.update`.
+- Соревнование ограничивается либо возрастными, либо академическими группами: оба списка → 422 `academic_group_ids`.
+
+## Область `ratings`: рейтинг спортсменов
+
+Публично, без входа. Рейтинг = дисциплина + возрастная **или** академическая группа. Места верифицированных соревнований за 365 дней, баллы складываются. Спортсмен стоит в группе, в которой он сейчас; баллы из младшей группы за год идут с ним. Равные баллы — одно место, дальше с пропуском: `1, 1, 1, 4`.
+
+Строка `LineOut`: `{place, athlete: {id, full_name}, municipality: {id, name} | null, points, contests}`.
+Блок `BoardOut`: `{discipline: {id, name}, group_kind: "age" | "academic", group: {id, name}, total, items: LineOut[]}`.
+
+| Метод | Путь | Query | Ответ |
+|---|---|---|---|
+| GET | `/ratings` | `discipline_id?`, `municipality_id?`, `group_kind?=age\|academic` — только рейтинги по возрасту или по учёбе, `limit` (1–50, по умолчанию 10) | `{items: BoardOut[]}` — все непустые рейтинги сразу |
+| GET | `/ratings/table` | `discipline_id`, `group_kind`, `group_id`, `municipality_id?`, `search?`, `limit` (до 200), `offset` | `BoardOut` с `total` по поиску; место при поиске не меняется. Нет дисциплины или группы → 404 |
+| GET | `/ratings/athletes/{user_id}` | — | `{items: [{discipline, group_kind, group, place, total, points, contests, scores: [{contest: {id, title, ends_on}, place, points}]}]}` |
+
+С фильтром `municipality_id` места пересчитываются внутри муниципалитета (`users.municipality_id`).
+
+## Область `documents`: документы соревнования
+
+ТЗ — [012_tz_results_rating_documents.md](012_tz_results_rating_documents.md). Виды `kind`: `certificate`, `diploma`, `gramota`, `thanks`, `reference`.
+
+Тело формы `FormIn`: `{title (1–40), lead?, text? (до 400), recipients: participants|winners, places_to (1–100), signer_position?, signer_name?, issued_on?}` — дата по умолчанию сегодня по Оренбургу.
+
+### Публично
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| GET | `/contests/{id}/documents` | `{items: [{kind, kind_title, form, items: [{token, number, name, role, team, place}]}]}` — `name` как «Фамилия И. О.»; непубличный статус → 404 |
+| GET | `/contests/{id}/documents/{kind}/pdf` | все документы вида одним PDF |
+| GET | `/documents/{token}` | документ для страницы проверки: номер, вид, заголовок, текст, получатель, роль, команда, место, подопечные, соревнование, подписант; нет → 404 |
+| GET | `/documents/{token}/pdf` | PDF документа |
+
+### Организатор (`/organizer/...`, свои) и федерация (`/admin/...`, любые)
+
+| Метод | Путь | Тело | Ответ |
+|---|---|---|---|
+| PUT | `/contests/{id}/documents/{kind}` | `FormIn` | выпуск заменяет прежние документы вида; ответ как у публичного списка |
+| DELETE | `/contests/{id}/documents/{kind}` | — | 204 |
+| GET | `/contests/{id}/documents/{kind}/preview` | поля `FormIn` в query | PDF первой страницы, без сохранения |
+
+- Статус не «Идёт», «Завершено», «В архиве» → 409 `invalid_status`; получателей нет → 422 `recipients`.
+- Сохранение мест (`PUT …/results`) перевыпускает все выданные виды соревнования с прежним текстом.
+- Аудит: `documents.issue`, `documents.remove`.
+
+### Свои документы (сессия)
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| GET | `/me/documents` | `{items: [{token, number, kind, kind_title, title, role, place, issued_on, contest: {id, title, dates}}], available: [{contest}]}` — `available`: соревнования «Идёт», «Завершено», «В архиве», где человек в одобренной заявке или подал её как тренер, и своей справки ещё нет |
+| POST | `/me/documents/reference` | `{contest_id}` → выдаёт свою справку (вид `reference`) с текстом и подписантом уже выпущенных справок соревнования или по умолчанию; уже есть — отдаёт её; нельзя → 403 |
+
+Подпись: у каждого документа HMAC-SHA256 от токена, номера, вида, получателя, соревнования и снимка данных; ключ `FSP_DOCUMENT_SIGNING_SECRET`. `GET /documents/{token}` отдаёт `valid`; при несовпадении страница проверки пишет, что документ недействителен.
+
+## Разряды, судейские категории и коллегии
+
+Полностью — [013_tz_judges_ranks.md](013_tz_judges_ranks.md).
+
+| Метод | Путь | Тело / query | Ответ |
+|---|---|---|---|
+| GET | `/me/qualifications` | — | `{items, submitted}`: свои и поданные за спортсменов |
+| GET | `/me/athletes` | — | спортсмены из заявок тренера `[{id, name, birth_date}]` |
+| POST | `/qualifications` | `{kind: judge_category\|rank, user_id?, item_id, document_file_id, basis?}` | 201 `Qualification`; 409 `already_pending`, `not_higher` |
+| POST | `/qualifications/{id}/withdraw` | — | `Qualification` |
+| GET | `/admin/qualifications` | `kind?`, `status?` (по умолчанию `pending`) | `[Qualification]` |
+| GET | `/admin/qualifications/{id}/preview` | — | `{valid_until}` |
+| POST | `/admin/qualifications/{id}/approve` | — | `Qualification` |
+| POST | `/admin/qualifications/{id}/reject` | `{reason}` | `Qualification` |
+| GET | `/contests/{id}/judges` | — | `{contest_id, starts_on, items: [{id, judge, position, category}]}` |
+| GET | `/contests/{id}/judges/candidates` | `q?` | `[{judge, category}]`: `category = null` — нет действующей на дату |
+| POST | `/contests/{id}/judges` | `{judge_id, position_id}` | 201 коллегия; 409 `category_not_valid`, `already_assigned` |
+| PATCH | `/contests/{id}/judges/{assignment_id}` | `{position_id}` | коллегия |
+| DELETE | `/contests/{id}/judges/{assignment_id}` | — | коллегия |
+| GET | `/me/judge-assignments` | — | `[{id, contest, position}]` |
+
+`Qualification`: `id, kind, kind_title, item_id, item_name, status, status_title, user, submitted_by, document_file_id, document_name, basis, reject_reason, valid_from, valid_until, decided_at, created_at`.
+
+---
+
+## Область `analytics`: аналитика федерации
+
+Только федерация: остальным 403, без сессии 401. Только чтение, своих таблиц нет.
+
+| Метод | Путь | Результат |
+|---|---|---|
+| GET | `/admin/analytics/{block}` | JSON блока |
+| GET | `/admin/analytics/{block}.xlsx` | блок одним листом |
+| GET | `/admin/analytics.xlsx` | книга: лист «Параметры» и по листу на блок |
+
+Параметры у всех: `date_from`, `date_to` (`YYYY-MM-DD`, по умолчанию двенадцать месяцев с текущим), `discipline_id`, `municipality_id`, `group_kind=age|academic`, `group_id` (только вместе с `group_kind`). Обратный диапазон и период длиннее десяти лет — 422.
+
+- Прошлый период — та же длина сразу перед текущим. `Delta = {value, previous, diff, pct}`, `pct = null`, если в прошлом был ноль.
+- Участник — спортсмен в одобренной заявке, активный, не отказавшийся; соревнование не черновик и не отменено, считается по дате начала.
+- Дисциплина фильтрует по соревнованию, муниципалитет — по участнику (у блока `contests` — по соревнованию), группа — по снимку в заявке.
+- Каждый ответ: `block`, `title`, `period: {from, to}`, `previous: {from, to}` и поля блока:
+
+| `block` | Поля |
+|---|---|
+| `summary` | `tiles`: `participants`, `newcomers`, `starts`, `contests`, `approval_rate`, `retention`, `qualifications` — всё `Delta` |
+| `participants` | `months: [{month, label, participants, newcomers, starts}]`, `totals` |
+| `contests` | `total`, `levels`, `formats`, `statuses`: `[{name, value, previous}]` |
+| `applications` | `counts`: `approved`, `rejected`, `submitted`, `withdrawn`; `reasons: [{reason, count}]` (топ-10) |
+| `retention` | `rate`, `kept`, `base`, `cohorts: [{month, label, size, m1, m3, m6}]` |
+| `demographics` | `municipalities`, `ages`, `academic`: `[{name, value, previous}]` |
+| `coaches` | `items: [{id, name, points, previous_points, athletes, starts, podiums}]` (топ-20 по баллам подопечных), `total_points` |
+| `judges` | `items: [{id, name, category, contests, days, chief}]`, `judges`, `average`, `without_panel` |
+| `qualifications` | `months: [{month, label, ranks, categories}]`, `by_name: [{kind, name, value}]`, `totals` |
+| `disciplines` | `items: [{id, name, participants, newcomers, contests, applications, approved, points}]` — все `Delta` |
+
+Файл: `analytics-{block}-{from}-{to}.xlsx` или `analytics-{from}-{to}.xlsx`, `Content-Disposition` в UTF-8. Числа — числами, доли — процентным форматом.
+
+## Сборные
+
+Полностью — [014_tz_squads.md](014_tz_squads.md).
+
+| Метод | Путь | Тело / query | Ответ |
+|---|---|---|---|
+| GET | `/squads` | `discipline_id?`, `group_kind?`, `group_id?` | `{items: [Squad]}`, без входа |
+| GET | `/squads/members/{user_id}` | — | `{items: [{squad_id, title, discipline, group_kind, group, link}]}` — метки «Участник сборной …» |
+| GET | `/admin/squads/candidates` | `discipline_id`, `group_kind`, `group_id`, `main_size`, `reserve_size` | `{title, discipline, group_kind, group, main_size, reserve_size, available, main, reserve, current}` |
+| POST | `/admin/squads` | `{discipline_id, group_kind, group_id, main_size, reserve_size, order_number, order_date, order_file_id}` | 201 `{id, title, link, main, reserve}`; заменяет действующую сборную; 409 `no_candidates` |
+| DELETE | `/admin/squads/{id}` | — | 204 |
+
+`Squad`: `id, title, discipline, group_kind, group, main_size, reserve_size, order: {number, date, url, file_name}, approved_at, main, reserve`. Участник: `{position, athlete: {id, name}, municipality, points}`, ФИО полностью у всех.
+
+## Документы судей, благодарности судьям, отчёт по человеку
+
+Полностью — [015_tz_judge_documents_reports.md](015_tz_judge_documents_reports.md).
+
+| Метод | Путь | Тело / query | Ответ |
+|---|---|---|---|
+| GET | `/contests/{id}/judge-documents` | — | `[{id, kind, kind_title, judge_id, judge_name, position, removed, file_name, file_type, file_size, url, comment, created_at, updated_at}]` |
+| POST | `/contests/{id}/judge-documents` | `{kind: note\|act\|protocol\|other, file_id, comment?}` | 201; 403 не в коллегии; 409 `invalid_status` |
+| PATCH | `/judge-documents/{id}` | `{kind, file_id?, comment?}` | документ; 403 чужой или судья снят |
+| DELETE | `/judge-documents/{id}` | — | 204 |
+| PUT | `/{organizer\|admin}/contests/{id}/documents/judge_thanks` | `FormIn` + `judge_ids?: uuid[]` | `null` — вся коллегия |
+| GET | `/people/{id}/report` | — | `{allowed, date_from, date_to}` |
+| GET | `/people/{id}/report.pdf` | `from?`, `to?` | PDF; 403 нет доступа; 422 `from > to` |
+| GET | `/people/{id}/report.xlsx` | `from?`, `to?` | xlsx |
+
+Раздел «Рейтинг» (только спортсмену): дисциплина, группа с видом, место, из скольких, баллы, соревнований — на сегодня, окно 365 дней. Тренеру — «Рейтинг подопечных»: те же места по каждому подопечному из заявок периода.
+
+`GET /people/{id}/wall?role=judge` — лента судьи, у записей поле `position`. Снятие судьи (`DELETE /contests/{id}/judges/{assignment_id}`) теперь мягкое.

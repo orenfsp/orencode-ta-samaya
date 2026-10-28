@@ -3,6 +3,7 @@ import { cn } from '@/shared/lib'
 import {
   Button,
   Checkbox,
+  CodeInput,
   Field,
   FileDrop,
   IconCheck,
@@ -43,6 +44,7 @@ const municipalities = [
 ]
 
 export function FormsDemo() {
+  const [code, setCode] = useState('')
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
@@ -192,6 +194,23 @@ export function FormsDemo() {
             <Switch label="Публичная страница" />
             <Switch label="Недоступно" disabled />
           </div>
+        </Row>
+      </div>
+
+      <div className="mt-10 grid gap-8 border-t border-line-soft pt-8 sm:grid-cols-2">
+        <Row label="Код из письма: вставка из буфера, Backspace назад">
+          <Field label="Код">
+            <CodeInput
+              value={code}
+              onChange={setCode}
+              onComplete={(value) => showToast(`Введён код ${value}`)}
+            />
+          </Field>
+        </Row>
+        <Row label="Неверный код">
+          <Field label="Код" error="Неверный код. Осталось попыток: 4">
+            <CodeInput value="12345" onChange={() => {}} />
+          </Field>
         </Row>
       </div>
     </Section>

@@ -30,7 +30,7 @@ export function Stepper({
             <div className="flex flex-col items-center">
               <span
                 className={cn(
-                  'grid size-11 shrink-0 place-items-center rounded-md border font-mono text-body font-bold transition-[background-color,border-color,color,scale] duration-340 ease-spring',
+                  'grid size-11 shrink-0 place-items-center rounded-md border font-mono text-body transition-[background-color,border-color,color,scale] duration-340 ease-spring',
                   done && 'border-primary bg-primary text-white',
                   active && 'scale-105 border-primary bg-primary-soft text-ink',
                   !done && !active && 'border-line-soft bg-surface-2 text-muted',

@@ -23,6 +23,7 @@ ContestId = Annotated[int, Path()]
 
 
 def build(prefix: str, role: Role, tag: str) -> APIRouter:
+    """Собирает роутер модерации заявок для указанной роли (организатор или федерация)."""
     router = APIRouter(prefix=prefix, tags=[tag])
     moderator = require_role(role)
     federation = role == Role.FEDERATION
@@ -34,6 +35,7 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> ContestCountsPage:
+        """Возвращает соревнования с количеством заявок по статусам."""
         items, total = await applications.moderation_contests(user.id, federation, limit, offset)
         return ContestCountsPage(
             items=[
@@ -53,6 +55,7 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> ApplicationPage:
+        """Возвращает список заявок соревнования с фильтром по статусу и поисковой строкой."""
         items, total = await applications.moderation_list(
             user.id, federation, contest_id, status_filter, (search or "").strip() or None, limit, offset
         )
@@ -62,6 +65,7 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
     async def approve_many(
         body: Annotated[IdsIn, Body()], user: Annotated[CurrentUser, Depends(moderator)], ip: ClientIp, applications: ApplicationsDep
     ) -> ApplicationList:
+        """Одобряет несколько заявок списком id."""
         items = await applications.approve(user.id, federation, body.ids, ip)
         return ApplicationList(items=[ApplicationOut.model_validate(item) for item in items])
 
@@ -69,6 +73,7 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
     async def reject_many(
         body: Annotated[RejectManyIn, Body()], user: Annotated[CurrentUser, Depends(moderator)], ip: ClientIp, applications: ApplicationsDep
     ) -> ApplicationList:
+        """Отклоняет несколько заявок списком id с одной общей причиной."""
         items = await applications.reject(user.id, federation, body.ids, body.reason, ip)
         return ApplicationList(items=[ApplicationOut.model_validate(item) for item in items])
 
@@ -76,6 +81,7 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
     async def approve(
         application_id: ApplicationId, user: Annotated[CurrentUser, Depends(moderator)], ip: ClientIp, applications: ApplicationsDep
     ) -> ApplicationOut:
+        """Одобряет одну заявку."""
         return ApplicationOut.model_validate((await applications.approve(user.id, federation, [application_id], ip))[0])
 
     @router.post("/applications/{application_id}/reject", summary="Отклонить")
@@ -86,6 +92,7 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
         ip: ClientIp,
         applications: ApplicationsDep,
     ) -> ApplicationOut:
+        """Отклоняет одну заявку с указанием причины."""
         items = await applications.reject(user.id, federation, [application_id], body.reason, ip)
         return ApplicationOut.model_validate(items[0])
 
@@ -93,6 +100,7 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
     async def reset(
         application_id: ApplicationId, user: Annotated[CurrentUser, Depends(moderator)], ip: ClientIp, applications: ApplicationsDep
     ) -> ApplicationOut:
+        """Возвращает решённую заявку в статус «подана»."""
         return ApplicationOut.model_validate((await applications.reset(user.id, federation, [application_id], ip))[0])
 
     return router

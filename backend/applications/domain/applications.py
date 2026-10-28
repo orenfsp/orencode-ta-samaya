@@ -12,10 +12,10 @@ from contests.repositories.pg_contests import ContestRepository
 from core.database import UnitOfWork
 from core.errors import Forbidden, InvalidStatus, NameTaken, NotFound, RegistrationClosed, ValidationFailed
 from dictionaries.domain.dictionaries import Dictionary
-from infrastructure.contest import ContestModel
-from infrastructure.contest_application import ContestApplicationModel
-from infrastructure.contest_application_member import ContestApplicationMemberModel
-from infrastructure.dictionary_age_group import DictionaryAgeGroupModel
+from infrastructure.contests.contest import ContestModel
+from infrastructure.participation.contest_application import ContestApplicationModel
+from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
+from infrastructure.dictionaries.dictionary_age_group import DictionaryAgeGroupModel
 from infrastructure.enums import (
     ApplicationCreator,
     ApplicationStatus,
@@ -24,7 +24,9 @@ from infrastructure.enums import (
     ParticipationType,
     Role,
 )
-from infrastructure.user import UserModel
+from infrastructure.account.user import UserModel
+from notifications.domain.notifications import Notifications
+from notifications.domain.types import NotificationType
 
 S = ApplicationStatus
 C = MemberConfirmation
@@ -32,14 +34,27 @@ CS = ContestStatus
 
 
 def _now() -> datetime:
+    """Возвращает текущее время в UTC."""
     return datetime.now(UTC)
 
 
 def _name(user: UserModel) -> str:
+    """Собирает фамилию и имя пользователя в одну строку."""
     return " ".join(part for part in (user.last_name, user.first_name) if part)
 
 
+def _applicant(item: ContestApplicationModel) -> str:
+    """Возвращает название команды или имена активных участников заявки."""
+    return item.team_name or ", ".join(_name(member.user) for member in item.members if member.is_active)
+
+
+def _manager_role(item: ContestApplicationModel) -> Role:
+    """Определяет роль, от имени которой подавалась заявка: тренер или спортсмен."""
+    return Role.COACH if item.created_as == ApplicationCreator.COACH else Role.ATHLETE
+
+
 class Applications:
+    """Домен заявок на участие в соревнованиях: создание, состав, модерация и статусы."""
     SEARCH_LIMIT = 20
     BEFORE_START = frozenset({CS.PUBLISHED, CS.REGISTRATION_OPEN, CS.REGISTRATION_CLOSED})
     MODERATION = frozenset({CS.REGISTRATION_OPEN, CS.REGISTRATION_CLOSED})
@@ -55,17 +70,21 @@ class Applications:
         contests: ContestRepository,
         dictionary: Dictionary,
         audit: Audit,
+        notifications: Notifications,
     ) -> None:
+        """Сохраняет зависимости."""
         self._uow = uow
         self._applications = applications
         self._members = members
         self._contests = contests
         self._dictionary = dictionary
         self._audit = audit
+        self._notifications = notifications
 
     async def search_athletes(
         self, text: str, contest_id: int | None
     ) -> tuple[Sequence[UserModel], dict[UUID, list[str]]]:
+        """Ищет спортсменов по тексту; если указан контест, добавляет список проблем по каждому найденному."""
         users = await self._members.search_athletes(text.strip(), self.SEARCH_LIMIT)
         problems: dict[UUID, list[str]] = {}
         if contest_id is not None:
@@ -81,6 +100,7 @@ class Applications:
     async def available(
         self, user_id: UUID, roles: frozenset[Role], as_: ApplicationCreator
     ) -> list[tuple[ContestModel, list[str]]]:
+        """Возвращает открытые для подачи заявки соревнования; для спортсмена — с его проблемами допуска."""
         if Role(as_.value) not in roles:
             raise Forbidden()
         user = await self._user(user_id)
@@ -89,17 +109,20 @@ class Applications:
         return [(item, Eligibility.problems(user, item) if as_athlete else []) for item in contests]
 
     async def mine(self, user_id: UUID, as_: ApplicationCreator) -> Sequence[ContestApplicationModel]:
+        """Возвращает заявки пользователя: как тренера или как участника."""
         if as_ == ApplicationCreator.COACH:
             return await self._applications.list_for_coach(user_id)
         return await self._applications.list_for_member(user_id)
 
     async def get(self, user_id: UUID, roles: frozenset[Role], application_id: int) -> ContestApplicationModel:
+        """Возвращает заявку, если пользователь имеет право её видеть, иначе NotFound."""
         item = await self._applications.get(application_id)
         if item is None or not self._can_see(item, user_id, roles):
             raise NotFound()
         return item
 
     async def participants(self, contest_id: int) -> Sequence[ContestApplicationModel]:
+        """Возвращает одобренные заявки по публичному соревнованию."""
         contest = await self._public_contest(contest_id)
         return await self._applications.list_approved(contest.id)
 
@@ -114,6 +137,7 @@ class Applications:
         captain_id: UUID | None,
         ip: str | None,
     ) -> ContestApplicationModel:
+        """Создаёт заявку на соревнование от спортсмена или тренера с проверкой состава и допуска."""
         if Role(as_.value) not in roles:
             raise Forbidden()
         user = await self._user(user_id)
@@ -182,12 +206,17 @@ class Applications:
                 )
             )
         await self._write(AuditAction.APPLICATION_CREATE, item, user.id, ip, {"members": [str(i) for i in ids]})
+        by_coach = as_ == ApplicationCreator.COACH
+        await self._notifications.application_invited(ids, user.id, contest.title, team_name, by_coach)
+        if instant:
+            await self._notifications.application_submitted(contest.organizer_id, user.id, contest.title, _name(user))
         await self._uow.commit()
         return await self._reload(item.id)
 
     async def create_for_athletes(
         self, user_id: UUID, roles: frozenset[Role], contest_id: int, member_ids: list[UUID], ip: str | None
     ) -> list[ContestApplicationModel]:
+        """Тренер создаёт по отдельной личной заявке на каждого указанного спортсмена."""
         if Role.COACH not in roles:
             raise Forbidden()
         contest = await self._contests.lock(contest_id)
@@ -226,10 +255,12 @@ class Applications:
             )
             await self._write(AuditAction.APPLICATION_CREATE, item, user_id, ip, {"members": [str(member_id)]})
             created.append(item.id)
+        await self._notifications.application_invited(ids, user_id, contest.title, None, by_coach=True)
         await self._uow.commit()
         return [await self._reload(item_id) for item_id in created]
 
     async def rename(self, user_id: UUID, application_id: int, team_name: str, ip: str | None) -> ContestApplicationModel:
+        """Переименовывает команду в заявке, если новое название ещё не занято на этом соревновании."""
         item = await self._managed(user_id, application_id)
         if item.team_name is None:
             raise InvalidStatus()
@@ -242,6 +273,7 @@ class Applications:
         return await self._reload(item.id)
 
     async def add_member(self, user_id: UUID, application_id: int, member_id: UUID, ip: str | None) -> ContestApplicationModel:
+        """Добавляет или повторно приглашает спортсмена в командную заявку и возвращает её в состояние формирования."""
         item = await self._managed(user_id, application_id)
         contest = item.contest
         if contest.participation_type != ParticipationType.TEAM:
@@ -270,10 +302,14 @@ class Applications:
             )
         await self._back_to_forming(item)
         await self._write(AuditAction.APPLICATION_MEMBER_ADD, item, user_id, ip, {"user_id": str(member_id)})
+        await self._notifications.application_invited(
+            [member_id], user_id, contest.title, item.team_name, item.created_as == ApplicationCreator.COACH
+        )
         await self._uow.commit()
         return await self._reload(item.id)
 
     async def remove_member(self, user_id: UUID, application_id: int, member_id: UUID, ip: str | None) -> ContestApplicationModel:
+        """Удаляет не-капитана из командной заявки и возвращает её в состояние формирования."""
         item = await self._managed(user_id, application_id)
         member = next((member for member in item.members if member.user_id == member_id), None)
         if member is None:
@@ -287,6 +323,7 @@ class Applications:
         return await self._reload(item.id)
 
     async def confirm(self, user_id: UUID, application_id: int, ip: str | None) -> ContestApplicationModel:
+        """Подтверждает участие приглашённого спортсмена; личную заявку сразу переводит в поданные."""
         user = await self._user(user_id)
         item, member = await self._membership(user.id, application_id)
         if member.confirmation != C.INVITED or not member.is_active or item.status not in self.CHANGEABLE:
@@ -301,10 +338,14 @@ class Applications:
             item = await self._reload(item.id)
             await self._submit(item)
             await self._write(AuditAction.APPLICATION_SUBMIT, item, user.id, ip, {})
+            await self._notifications.application_submitted(
+                item.contest.organizer_id, user.id, item.contest.title, _applicant(item)
+            )
         await self._uow.commit()
         return await self._reload(item.id)
 
     async def decline(self, user_id: UUID, application_id: int, ip: str | None) -> ContestApplicationModel:
+        """Отказывает приглашённому участнику от участия; личную заявку отзывает, командную возвращает на формирование."""
         item, member = await self._membership(user_id, application_id)
         if member.confirmation == C.DECLINED or member.is_captain or item.status not in self.CHANGEABLE:
             raise InvalidStatus()
@@ -316,19 +357,27 @@ class Applications:
         else:
             await self._back_to_forming(item)
         await self._write(AuditAction.APPLICATION_DECLINE, item, user_id, ip, {})
+        await self._notifications.application_member_declined(
+            item.created_by, _manager_role(item), user_id, item.contest.title
+        )
         await self._uow.commit()
         return await self._reload(item.id)
 
     async def submit(self, user_id: UUID, application_id: int, ip: str | None) -> ContestApplicationModel:
+        """Подаёт сформированную заявку на модерацию, если все участники подтвердили участие и подходят по составу."""
         item = await self._managed(user_id, application_id)
         if item.status != S.FORMING:
             raise InvalidStatus()
         await self._submit(item)
         await self._write(AuditAction.APPLICATION_SUBMIT, item, user_id, ip, {})
+        await self._notifications.application_submitted(
+            item.contest.organizer_id, user_id, item.contest.title, _applicant(item)
+        )
         await self._uow.commit()
         return await self._reload(item.id)
 
     async def withdraw(self, user_id: UUID, application_id: int, ip: str | None) -> ContestApplicationModel:
+        """Отзывает заявку целиком и деактивирует всех её участников."""
         item = await self._applications.lock(application_id)
         if item is None or not self._is_manager(item, user_id):
             raise NotFound()
@@ -346,6 +395,7 @@ class Applications:
     async def moderation_contests(
         self, user_id: UUID, is_federation: bool, limit: int, offset: int
     ) -> tuple[list[tuple[ContestModel, dict[ApplicationStatus, int]]], int]:
+        """Возвращает соревнования с подсчётом заявок по статусам для модерации."""
         return await self._applications.contest_counts(None if is_federation else user_id, limit, offset)
 
     async def moderation_list(
@@ -358,6 +408,7 @@ class Applications:
         limit: int,
         offset: int,
     ) -> tuple[Sequence[ContestApplicationModel], int]:
+        """Возвращает список заявок соревнования для модерации с фильтром по статусу и поиском."""
         contest = await self._contests.get(contest_id)
         if contest is None or (not is_federation and contest.organizer_id != user_id):
             raise NotFound()
@@ -371,16 +422,19 @@ class Applications:
     async def approve(
         self, user_id: UUID, is_federation: bool, application_ids: list[int], ip: str | None
     ) -> list[ContestApplicationModel]:
+        """Одобряет поданные заявки списком."""
         return await self._decide(user_id, is_federation, application_ids, S.APPROVED, None, ip)
 
     async def reject(
         self, user_id: UUID, is_federation: bool, application_ids: list[int], reason: str, ip: str | None
     ) -> list[ContestApplicationModel]:
+        """Отклоняет поданные заявки списком с указанием причины."""
         return await self._decide(user_id, is_federation, application_ids, S.REJECTED, reason, ip)
 
     async def reset(
         self, user_id: UUID, is_federation: bool, application_ids: list[int], ip: str | None
     ) -> list[ContestApplicationModel]:
+        """Возвращает решённые заявки обратно в статус «подана»."""
         return await self._decide(user_id, is_federation, application_ids, S.SUBMITTED, None, ip)
 
     async def _decide(
@@ -392,6 +446,7 @@ class Applications:
         reason: str | None,
         ip: str | None,
     ) -> list[ContestApplicationModel]:
+        """Переводит заявки в целевой статус с проверкой прав, допустимых переходов и занятости участников."""
         ids = list(dict.fromkeys(application_ids))
         items = await self._applications.lock_many(ids)
         if len(items) != len(ids):
@@ -412,6 +467,11 @@ class Applications:
             S.REJECTED: AuditAction.APPLICATION_REJECT,
             S.SUBMITTED: AuditAction.APPLICATION_RESET,
         }[target]
+        kind = {
+            S.APPROVED: NotificationType.APPLICATION_APPROVED,
+            S.REJECTED: NotificationType.APPLICATION_REJECTED,
+            S.SUBMITTED: NotificationType.APPLICATION_RESET,
+        }[target]
         now = _now()
         for item in items:
             previous = item.status
@@ -428,10 +488,15 @@ class Applications:
                 if member.confirmation == C.CONFIRMED:
                     await self._members.update(member, {"is_active": target != S.REJECTED})
             await self._write(action, item, user_id, ip, {"from": previous.value, "reason": reason})
+            recipients = [(member.user_id, Role.ATHLETE) for member in item.members if member.confirmation == C.CONFIRMED]
+            if item.created_as == ApplicationCreator.COACH:
+                recipients.append((item.created_by, Role.COACH))
+            await self._notifications.application_decided(recipients, user_id, kind, item.contest.title, reason)
         await self._uow.commit()
         return [await self._reload(item.id) for item in items]
 
     async def _ensure_free_again(self, items: list[ContestApplicationModel]) -> None:
+        """Проверяет, что подтверждённые участники отклонённых заявок не заняты другой заявкой на то же соревнование."""
         for item in items:
             if item.status != S.REJECTED:
                 continue
@@ -445,6 +510,7 @@ class Applications:
                 )
 
     async def _submit(self, item: ContestApplicationModel) -> None:
+        """Проверяет состав заявки и переводит её в статус «подана», заполняя возрастные группы участников."""
         contest = item.contest
         self._ensure_registration(contest)
         active = [member for member in item.members if member.is_active]
@@ -476,6 +542,7 @@ class Applications:
         )
 
     async def _back_to_forming(self, item: ContestApplicationModel) -> None:
+        """Возвращает поданную или одобренную заявку в статус формирования."""
         if item.status in {S.SUBMITTED, S.APPROVED}:
             await self._applications.update(
                 item, {"status": S.FORMING, "submitted_at": None, "decided_by": None, "decided_at": None}
@@ -490,6 +557,7 @@ class Applications:
         errors: dict[str, list[str]],
         field: str = "members",
     ) -> dict[UUID, UserModel]:
+        """Проверяет допуск и занятость указанных пользователей, дописывая ошибки в errors; возвращает их модели."""
         users = await self._members.users(ids)
         busy = await self._members.busy_users(contest.id, ids, application_id)
         messages: list[str] = []
@@ -509,6 +577,7 @@ class Applications:
         return users
 
     async def _managed(self, user_id: UUID, application_id: int) -> ContestApplicationModel:
+        """Блокирует заявку и проверяет, что пользователь ею управляет и статус позволяет изменения."""
         item = await self._applications.lock(application_id)
         if item is None or not self._is_manager(item, user_id):
             raise NotFound()
@@ -520,6 +589,7 @@ class Applications:
     async def _membership(
         self, user_id: UUID, application_id: int
     ) -> tuple[ContestApplicationModel, ContestApplicationMemberModel]:
+        """Блокирует заявку и находит в ней участника с данным user_id."""
         item = await self._applications.lock(application_id)
         member = next((member for member in item.members if member.user_id == user_id), None) if item else None
         if item is None or member is None:
@@ -527,22 +597,26 @@ class Applications:
         return item, member
 
     async def _public_contest(self, contest_id: int) -> ContestModel:
+        """Возвращает соревнование, если оно существует и опубликовано."""
         contest = await self._contests.get(contest_id)
         if contest is None or contest.status not in self.PUBLIC:
             raise NotFound()
         return contest
 
     async def _user(self, user_id: UUID) -> UserModel:
+        """Возвращает пользователя по id или бросает NotFound."""
         user = (await self._members.users([user_id])).get(user_id)
         if user is None:
             raise NotFound()
         return user
 
     async def _age_catalog(self) -> list[DictionaryAgeGroupModel]:
+        """Возвращает неархивный справочник возрастных групп."""
         items = await self._dictionary.list("age_groups", include_archived=False)
         return [item for item in items if isinstance(item, DictionaryAgeGroupModel)]
 
     async def _reload(self, application_id: int) -> ContestApplicationModel:
+        """Перечитывает заявку из репозитория со связанными данными."""
         item = await self._applications.get(application_id)
         if item is None:
             raise NotFound()
@@ -556,6 +630,7 @@ class Applications:
         ip: str | None,
         values: dict[str, Any],
     ) -> None:
+        """Пишет действие по заявке в журнал аудита."""
         await self._audit.write(
             action,
             user_id=user_id,
@@ -568,11 +643,13 @@ class Applications:
     def _age_group_id(
         user: UserModel, contest: ContestModel, catalog: Sequence[DictionaryAgeGroupModel]
     ) -> int | None:
+        """Возвращает id подходящей пользователю возрастной группы соревнования, если она есть."""
         group = Eligibility.age_group(user, contest, catalog)
         return group.id if group else None
 
     @staticmethod
     def _ensure_registration(contest: ContestModel) -> None:
+        """Бросает RegistrationClosed, если регистрация на соревнование сейчас закрыта."""
         now = _now()
         if (
             contest.status != CS.REGISTRATION_OPEN
@@ -583,12 +660,14 @@ class Applications:
 
     @staticmethod
     def _is_manager(item: ContestApplicationModel, user_id: UUID) -> bool:
+        """Проверяет, что пользователь создал заявку или является активным капитаном в ней."""
         return item.created_by == user_id or any(
             member.is_captain and member.is_active and member.user_id == user_id for member in item.members
         )
 
     @staticmethod
     def _can_see(item: ContestApplicationModel, user_id: UUID, roles: frozenset[Role]) -> bool:
+        """Проверяет право пользователя просматривать заявку: федерация, создатель, организатор или участник."""
         return (
             Role.FEDERATION in roles
             or item.created_by == user_id

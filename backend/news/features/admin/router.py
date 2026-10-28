@@ -25,12 +25,14 @@ async def list_articles(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ArticlePage:
+    """Возвращает страницу статей для админки по фильтрам, включая черновики и архив."""
     items, total = await news.admin_list(q.strip(), status, tag, limit, offset)
     return ArticlePage(items=[ArticleOut.model_validate(item) for item in items], total=total)
 
 
 @router.get("/{article_id}", summary="Статья")
 async def get_article(article_id: ArticleId, user: Federation, news: NewsDep) -> ArticleOut:
+    """Возвращает статью по id в любом статусе."""
     return ArticleOut.model_validate(await news.admin_get(article_id))
 
 
@@ -38,6 +40,7 @@ async def get_article(article_id: ArticleId, user: Federation, news: NewsDep) ->
 async def create_article(
     body: Annotated[ArticleIn, Body()], user: Federation, news: NewsDep, ip: ClientIp
 ) -> ArticleOut:
+    """Создаёт новую статью-черновик."""
     return ArticleOut.model_validate(await news.create(body.values(), user.id, ip))
 
 
@@ -45,6 +48,7 @@ async def create_article(
 async def update_article(
     article_id: ArticleId, body: Annotated[ArticlePatch, Body()], user: Federation, news: NewsDep, ip: ClientIp
 ) -> ArticleOut:
+    """Обновляет переданные поля статьи."""
     return ArticleOut.model_validate(await news.update(article_id, body.values(), user.id, ip))
 
 
@@ -56,4 +60,5 @@ async def change_status(
     news: NewsDep,
     ip: ClientIp,
 ) -> ArticleOut:
+    """Меняет статус статьи: публикация, снятие с публикации, архивация или восстановление."""
     return ArticleOut.model_validate(await news.transition(article_id, action, user.id, ip))

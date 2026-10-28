@@ -17,6 +17,7 @@ async def register(
     ip: ClientIp,
     accounts: AccountDep,
 ) -> RegisterOut:
+    """Регистрирует нового пользователя и открывает для него сессию."""
     user = await accounts.register(
         email=body.email,
         password=body.password,
@@ -26,6 +27,7 @@ async def register(
         birth_date=body.birth_date,
         roles=body.roles,
         ip=ip,
+        user_agent=request.headers.get("user-agent", ""),
     )
     session = await accounts.start_session(request.cookies.get(SID_COOKIE), user)
     set_auth_cookies(response, session)

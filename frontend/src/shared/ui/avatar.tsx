@@ -10,25 +10,44 @@ export interface AvatarProps {
   className?: string
 }
 
-/** Нет фото — инициалы на синем круге, а не одинаковая иконка у всех (кит §9) */
+/**
+ * Нет фото — инициалы на синем круге, а не одинаковая иконка у всех (кит §9).
+ * Инициалы видны, пока фото грузится; фото проявляется поверх, битое или отсутствующее — не показывается.
+ */
 export function Avatar({ name, src, size = 'md', className }: AvatarProps) {
-  const [failed, setFailed] = useState(false)
-  const showImage = src && !failed
+  const [state, setState] = useState<{
+    src: string | null | undefined
+    status: 'loading' | 'ready' | 'failed'
+  }>({
+    src,
+    status: 'loading',
+  })
+  // Новая ссылка — заново ждём загрузку, без эффекта
+  const status = state.src === src ? state.status : 'loading'
+  if (state.src !== src) setState({ src, status: 'loading' })
 
   return (
     <span
       className={cn(
-        'relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary font-bold text-white select-none',
+        'relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary font-medium text-white select-none',
         sizes[size],
         className,
       )}
     >
-      {showImage ? (
-        <img src={src} alt={name} onError={() => setFailed(true)} className="size-full object-cover" />
-      ) : (
-        <span aria-label={name} role="img">
-          {initials(name)}
-        </span>
+      <span aria-label={status === 'ready' ? undefined : name} role={status === 'ready' ? undefined : 'img'}>
+        {initials(name)}
+      </span>
+      {src && status !== 'failed' && (
+        <img
+          src={src}
+          alt={name}
+          onLoad={() => setState({ src, status: 'ready' })}
+          onError={() => setState({ src, status: 'failed' })}
+          className={cn(
+            'absolute inset-0 size-full object-cover transition-opacity duration-200',
+            status === 'ready' ? 'opacity-100' : 'opacity-0',
+          )}
+        />
       )}
     </span>
   )

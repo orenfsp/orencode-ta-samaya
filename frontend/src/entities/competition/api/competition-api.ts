@@ -5,7 +5,6 @@ import type {
   CompetitionFilters,
   CompetitionInput,
   CompetitionScope,
-  HistoryEntry,
   LevelPoints,
   ManagedCompetition,
   Page,
@@ -62,6 +61,5 @@ export const competitionApi = {
     }),
   revokeVerification: (id: number) =>
     request<ManagedCompetition>(`/admin/contests/${id}/revoke-verification`, { method: 'POST' }),
-  history: (id: number) => request<HistoryEntry[]>(`/admin/contests/${id}/history`),
   ratingDefaults: () => request<LevelPoints[]>('/admin/contests/rating-points-defaults'),
 }

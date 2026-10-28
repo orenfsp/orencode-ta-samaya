@@ -77,17 +77,14 @@ export function RankingList({
           В этой группе пока нет результатов
         </p>
       ) : (
-        <ol className="flex flex-col overflow-hidden rounded-lg border border-line-soft">
+        <ol className="flex flex-1 flex-col overflow-hidden rounded-lg border border-line-soft bg-surface-2 light:bg-canvas">
           {top.map((row) => (
-            <li key={row.id} className="border-b border-line-soft last:border-b-0">
+            <li key={row.id} className="border-b border-line-soft bg-canvas last:border-b-0">
               <Row row={row} big />
             </li>
           ))}
           {rest.map((row) => (
-            <li
-              key={row.id}
-              className="border-b border-line-soft bg-surface-2 last:border-b-0 light:bg-canvas"
-            >
+            <li key={row.id} className="border-b border-line-soft last:border-b-0">
               <Row row={row} />
             </li>
           ))}
@@ -106,11 +103,15 @@ function Row({ row, big = false }: { row: RankingRow; big?: boolean }) {
     <span className="truncate">{row.name}</span>
   )
   return (
-    <div className={cn('flex items-center gap-3 sm:gap-4', big ? 'px-4 py-4 sm:px-5' : 'px-4 py-2 sm:px-5')}>
-      <PlaceMark place={row.place} size={big ? 'lg' : 'sm'} />
-      {big && <Avatar name={row.name} src={row.avatar} size="md" className="hidden sm:inline-grid" />}
+    <div className={cn('flex items-center gap-3', big ? 'px-4 py-3.5 sm:px-5' : 'px-4 py-2 sm:px-5')}>
+      <PlaceMark place={row.place} size={big ? 'md' : 'sm'} />
+      {big && (
+        <span className="hidden sm:contents">
+          <Avatar name={row.name} src={row.avatar} size="md" />
+        </span>
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className={cn('flex min-w-0 text-ink', big ? 'text-lead font-medium' : 'text-sm')}>{name}</span>
+        <span className={cn('flex min-w-0 text-ink', big ? 'text-body font-medium' : 'text-sm')}>{name}</span>
         {big && row.meta && <span className="truncate text-sm text-muted">{row.meta}</span>}
       </div>
       <span

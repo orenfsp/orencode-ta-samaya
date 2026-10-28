@@ -17,6 +17,7 @@ class AppError(Exception):
         fields: dict[str, list[str]] | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
+        """Сохраняет сообщение, поля с ошибками и заголовки ответа."""
         self.message = message or self.message
         self.fields = fields
         self.headers = headers
@@ -143,11 +144,25 @@ class HasApplications(AppError):
     message = "На соревнование уже подали заявки. Его можно только отменить"
 
 
+class LoginRequired(AppError):
+    status_code = 401
+    code = "login_required"
+    message = "Страница открыта только для вошедших"
+
+
+class InvalidCode(AppError):
+    status_code = 400
+    code = "invalid_code"
+    message = "Неверный или устаревший код"
+
+
 def error_body(code: str, message: str, fields: dict[str, list[str]] | None = None) -> dict:
+    """Формирует тело JSON-ответа об ошибке."""
     return {"error": {"code": code, "message": message, "fields": fields}}
 
 
 def _field_name(loc: tuple) -> str:
+    """Собирает имя поля из пути Pydantic-ошибки, отбросив служебные части."""
     parts = [str(part) for part in loc if part not in ("body", "query", "path", "header", "cookie")]
     return ".".join(parts) or "__root__"
 
@@ -184,6 +199,7 @@ PYDANTIC_MESSAGES: dict[str, str] = {
 
 
 def _messages(item: dict) -> list[str]:
+    """Переводит одну Pydantic-ошибку в список сообщений на русском."""
     if item["type"] == "string_too_short" and item.get("ctx", {}).get("min_length") == 1:
         return ["Не может быть пустым"]
     template = PYDANTIC_MESSAGES.get(item["type"])
@@ -198,6 +214,7 @@ def _messages(item: dict) -> list[str]:
 
 
 async def _app_error_handler(request: Request, error: Exception) -> JSONResponse:
+    """Превращает AppError в JSON-ответ с его статусом, кодом и сообщением."""
     exc = cast(AppError, error)
     return JSONResponse(
         status_code=exc.status_code,
@@ -207,6 +224,7 @@ async def _app_error_handler(request: Request, error: Exception) -> JSONResponse
 
 
 async def _validation_error_handler(request: Request, error: Exception) -> JSONResponse:
+    """Превращает ошибки валидации Pydantic в ответ 422 с сообщениями по полям."""
     exc = cast(RequestValidationError, error)
     fields: dict[str, list[str]] = {}
     for item in exc.errors():
@@ -218,6 +236,7 @@ async def _validation_error_handler(request: Request, error: Exception) -> JSONR
 
 
 async def _http_error_handler(request: Request, error: Exception) -> JSONResponse:
+    """Превращает стандартные HTTP-исключения Starlette в единый формат ответа."""
     exc = cast(StarletteHTTPException, error)
     code = {400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found", 405: "method_not_allowed"}.get(
         exc.status_code, "http_error"
@@ -230,6 +249,7 @@ async def _http_error_handler(request: Request, error: Exception) -> JSONRespons
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    """Регистрирует обработчики AppError, ошибок валидации и HTTP-исключений."""
     app.add_exception_handler(AppError, _app_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, _http_error_handler)

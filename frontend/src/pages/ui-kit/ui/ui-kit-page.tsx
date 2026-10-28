@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ValidityTag } from '@/entities/qualification'
 import { routes } from '@/shared/config'
 import {
   Accordion,
@@ -23,6 +24,7 @@ import {
 } from '@/shared/ui'
 import { CardsDemo, DataDemo } from './data-demo'
 import { FutureDemo } from './future-demo'
+import { Kit2Demo } from './kit2-demo'
 import { FormsDemo } from './forms-demo'
 import { NavigationDemo } from './navigation-demo'
 import { OverlaysDemo } from './overlays-demo'
@@ -52,6 +54,8 @@ const toc = [
   ['tabs', 'Вкладки'],
   ['forms', 'Формы'],
   ['data', 'Данные'],
+  ['tables', 'Таблицы'],
+  ['kit2', 'Код, факты, панель'],
   ['cards', 'Карточки'],
   ['overlays', 'Окна'],
   ['navigation', 'Меню'],
@@ -79,6 +83,9 @@ const navigatorSteps = [
   },
   { title: 'Подайте первую заявку', description: 'Платформа сама покажет, куда вы проходите по возрасту' },
 ]
+
+/** Дата через N дней в формате API: для примеров срока */
+const dayFromNow = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
 
 export function UiKitPage() {
   const [segment, setSegment] = useState('athlete')
@@ -192,6 +199,12 @@ export function UiKitPage() {
           <StatusTag tone="done">Завершено</StatusTag>
           <StatusTag tone="cancelled">Отменено</StatusTag>
         </Row>
+        <Row label="Срок разряда">
+          <ValidityTag validUntil={dayFromNow(400)} />
+          <ValidityTag validUntil={dayFromNow(7)} />
+          <ValidityTag validUntil={dayFromNow(-3)} />
+          <ValidityTag validUntil={null} />
+        </Row>
         <Row label="Свойство">
           <MetaTag accent>Онлайн</MetaTag>
           <MetaTag>Оффлайн</MetaTag>
@@ -255,6 +268,7 @@ export function UiKitPage() {
 
       <FormsDemo />
       <DataDemo />
+      <Kit2Demo />
       <CardsDemo />
       <OverlaysDemo />
       <NavigationDemo />
