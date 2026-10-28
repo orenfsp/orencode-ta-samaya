@@ -23,7 +23,7 @@ from infrastructure.dictionaries.dictionary_contest_level import DictionaryConte
 from infrastructure.dictionaries.dictionary_contest_type import DictionaryContestTypeModel
 from infrastructure.dictionaries.dictionary_discipline import DictionaryDisciplineModel
 from infrastructure.dictionaries.dictionary_municipality import DictionaryMunicipalityModel
-from infrastructure.enums import ContestStatus, ParticipationType, Role, VerificationStatus
+from infrastructure.enums import CalendarPlan, ContestStatus, ParticipationType, Role, VerificationStatus
 from infrastructure.services.file import FileModel
 from notifications.domain.notifications import Notifications
 from notifications.domain.types import NotificationType
@@ -491,6 +491,8 @@ class Contest:
         online = format_item is not None and "онлайн" in format_item.name.lower()
         if format_item is not None and not online and data.get("municipality_id") is None:
             errors.setdefault("municipality_id", ["Укажите, где проводится"])
+        if data.get("calendar_plan_number") and data.get("calendar_plan") in (None, CalendarPlan.NONE):
+            errors.setdefault("calendar_plan_number", ["Номер указывают вместе с календарным планом"])
         if data.get("age_group_ids") and data.get("academic_group_ids"):
             errors.setdefault("academic_group_ids", ["Выберите либо возрастные, либо академические группы"])
         size_min, size_max = data.get("team_size_min"), data.get("team_size_max")
@@ -534,6 +536,8 @@ class Contest:
             "registration_closes_at",
             "prize_fund_text",
             "prize_fund_amount",
+            "calendar_plan",
+            "calendar_plan_number",
             "organizer_id",
         ]
         snapshot = {column: getattr(item, column) for column in columns}

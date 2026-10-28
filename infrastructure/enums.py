@@ -127,6 +127,7 @@ class DocumentKind(StrEnum):
     THANKS = "thanks"
     JUDGE_THANKS = "judge_thanks"
     REFERENCE = "reference"
+    JUDGE_PANEL = "judge_panel"
 
 
 DOCUMENT_KIND_TITLES: dict[DocumentKind, str] = {
@@ -136,6 +137,7 @@ DOCUMENT_KIND_TITLES: dict[DocumentKind, str] = {
     DocumentKind.THANKS: "Благодарности тренерам",
     DocumentKind.JUDGE_THANKS: "Благодарности судьям",
     DocumentKind.REFERENCE: "Справки об участии",
+    DocumentKind.JUDGE_PANEL: "Справка о составе судейской коллегии",
 }
 
 
@@ -210,4 +212,188 @@ JUDGE_DOCUMENT_KIND_TITLES: dict[JudgeDocumentKind, str] = {
     JudgeDocumentKind.ACT: "Акт",
     JudgeDocumentKind.PROTOCOL: "Протокол судьи",
     JudgeDocumentKind.OTHER: "Другое",
+}
+
+
+class TrainingStage(StrEnum):
+    INITIAL = "initial"
+    TRAINING = "training"
+    IMPROVEMENT = "improvement"
+    HIGHEST = "highest"
+
+
+TRAINING_STAGE_TITLES: dict[TrainingStage, str] = {
+    TrainingStage.INITIAL: "Начальная подготовка",
+    TrainingStage.TRAINING: "Учебно-тренировочный этап",
+    TrainingStage.IMPROVEMENT: "Совершенствование спортивного мастерства",
+    TrainingStage.HIGHEST: "Высшее спортивное мастерство",
+}
+
+
+class Sex(StrEnum):
+    MALE = "male"
+    FEMALE = "female"
+
+
+class CoachLinkStatus(StrEnum):
+    REQUESTED = "requested"
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    ENDED = "ended"
+    DECLINED = "declined"
+
+
+COACH_LINK_STATUS_TITLES: dict[CoachLinkStatus, str] = {
+    CoachLinkStatus.REQUESTED: "Ждёт подтверждения",
+    CoachLinkStatus.ACTIVE: "Активна",
+    CoachLinkStatus.SUSPENDED: "Приостановлена",
+    CoachLinkStatus.ENDED: "Завершена",
+    CoachLinkStatus.DECLINED: "Отклонена",
+}
+
+
+class CalendarPlan(StrEnum):
+    NONE = "none"
+    EKP = "ekp"
+    REGIONAL = "regional"
+
+
+CALENDAR_PLAN_TITLES: dict[CalendarPlan, str] = {
+    CalendarPlan.NONE: "Не включено",
+    CalendarPlan.EKP: "ЕКП Минспорта России",
+    CalendarPlan.REGIONAL: "Календарный план Оренбургской области",
+}
+
+
+class RatingSeason(StrEnum):
+    ROLLING = "rolling"
+    CALENDAR = "calendar"
+
+
+RATING_SEASON_TITLES: dict[RatingSeason, str] = {
+    RatingSeason.ROLLING: "Последние 365 дней",
+    RatingSeason.CALENDAR: "Календарный год",
+}
+
+
+class AppealStatus(StrEnum):
+    SUBMITTED = "submitted"
+    REVIEWING = "reviewing"
+    UPHELD = "upheld"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+
+
+APPEAL_STATUS_TITLES: dict[AppealStatus, str] = {
+    AppealStatus.SUBMITTED: "Подана",
+    AppealStatus.REVIEWING: "На рассмотрении",
+    AppealStatus.UPHELD: "Удовлетворена",
+    AppealStatus.REJECTED: "Отклонена",
+    AppealStatus.WITHDRAWN: "Отозвана",
+}
+
+
+class ViolationStatus(StrEnum):
+    REPORTED = "reported"
+    DECIDED = "decided"
+    DISMISSED = "dismissed"
+
+
+VIOLATION_STATUS_TITLES: dict[ViolationStatus, str] = {
+    ViolationStatus.REPORTED: "Ждёт решения",
+    ViolationStatus.DECIDED: "Решение принято",
+    ViolationStatus.DISMISSED: "Не подтвердилось",
+}
+
+
+class Sanction(StrEnum):
+    WARNING = "warning"
+    TECHNICAL_DEFEAT = "technical_defeat"
+    DISQUALIFICATION = "disqualification"
+    SUSPENSION = "suspension"
+
+
+SANCTION_TITLES: dict[Sanction, str] = {
+    Sanction.WARNING: "Предупреждение",
+    Sanction.TECHNICAL_DEFEAT: "Техническое поражение",
+    Sanction.DISQUALIFICATION: "Дисквалификация на соревнование",
+    Sanction.SUSPENSION: "Отстранение на срок",
+}
+
+
+class EnrollmentEnd(StrEnum):
+    TRANSFERRED = "transferred"
+    EXPELLED = "expelled"
+
+
+ENROLLMENT_END_TITLES: dict[EnrollmentEnd, str] = {
+    EnrollmentEnd.TRANSFERRED: "Переведён",
+    EnrollmentEnd.EXPELLED: "Отчислен",
+}
+
+
+class SessionFormat(StrEnum):
+    OFFLINE = "offline"
+    ONLINE = "online"
+
+
+SESSION_FORMAT_TITLES: dict[SessionFormat, str] = {
+    SessionFormat.OFFLINE: "Очно",
+    SessionFormat.ONLINE: "Онлайн",
+}
+
+
+class NormKind(StrEnum):
+    OFP = "ofp"
+    SFP = "sfp"
+
+
+NORM_KIND_TITLES: dict[NormKind, str] = {
+    NormKind.OFP: "Общая физическая подготовка",
+    NormKind.SFP: "Специальная физическая подготовка",
+}
+
+
+class NormDirection(StrEnum):
+    HIGHER = "higher"
+    LOWER = "lower"
+
+
+NORM_DIRECTION_TITLES: dict[NormDirection, str] = {
+    NormDirection.HIGHER: "не менее",
+    NormDirection.LOWER: "не более",
+}
+
+
+class NormUnit(StrEnum):
+    SECONDS = "seconds"
+    MIN_SEC = "min_sec"
+    CENTIMETERS = "centimeters"
+    TIMES = "times"
+    CHARS = "chars"
+
+
+NORM_UNIT_TITLES: dict[NormUnit, str] = {
+    NormUnit.SECONDS: "с",
+    NormUnit.MIN_SEC: "мин, с",
+    NormUnit.CENTIMETERS: "см",
+    NormUnit.TIMES: "количество раз",
+    NormUnit.CHARS: "знаков в минуту",
+}
+
+
+class AttestationResult(StrEnum):
+    TRANSFERRED = "transferred"
+    RETAINED = "retained"
+
+
+ATTESTATION_RESULT_TITLES: dict[AttestationResult, str] = {
+    AttestationResult.TRANSFERRED: "Переведён на следующий этап",
+    AttestationResult.RETAINED: "Оставлен на этапе",
+}
+
+NEXT_STAGE: dict[TrainingStage, TrainingStage] = {
+    TrainingStage.INITIAL: TrainingStage.TRAINING,
+    TrainingStage.TRAINING: TrainingStage.IMPROVEMENT,
+    TrainingStage.IMPROVEMENT: TrainingStage.HIGHEST,
 }

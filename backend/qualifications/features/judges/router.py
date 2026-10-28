@@ -26,11 +26,14 @@ AssignmentId = Annotated[UUID, Path()]
 
 async def _panel(judges: JudgesDep, contest_id: int) -> PanelOut:
     """Собирает схему коллегии судей соревнования."""
-    contest, items, categories = await judges.of_contest(contest_id)
+    panel = await judges.of_contest(contest_id)
     return PanelOut(
-        contest_id=contest.id,
-        starts_on=contest.starts_on,
-        items=[AssignmentOut.of(item, categories.get(item.judge_id)) for item in items],
+        contest_id=panel.contest.id,
+        starts_on=panel.contest.starts_on,
+        items=[
+            AssignmentOut.of(item, panel.categories.get(item.judge_id), panel.conflicts.get(item.judge_id))
+            for item in panel.items
+        ],
     )
 
 
@@ -46,7 +49,7 @@ async def candidates(
 ) -> list[CandidateOut]:
     """Подбирает судей для назначения в коллегию соревнования."""
     return [
-        CandidateOut(judge=PersonOut.of(item.user), category=CategoryOut.of(item.category))
+        CandidateOut(judge=PersonOut.of(item.user), category=CategoryOut.of(item.category), conflicts=item.conflicts)
         for item in await judges.candidates(user.id, user.roles, contest_id, q)
     ]
 

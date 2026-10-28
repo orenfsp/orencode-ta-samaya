@@ -5,12 +5,15 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from infrastructure.participation.contest_application import ContestApplicationModel
-from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
-from infrastructure.enums import ApplicationCreator, QualificationKind, QualificationStatus, Role, RoleStatus
-from infrastructure.qualifications.qualification import QualificationModel
 from infrastructure.account.user import UserModel
 from infrastructure.account.user_role import UserRoleModel
+from infrastructure.contests.contest import ContestModel
+from infrastructure.enums import ApplicationCreator, ApplicationStatus, CoachLinkStatus, QualificationKind, QualificationStatus, Role, RoleStatus
+from infrastructure.participation.contest_application import ContestApplicationModel
+from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
+from infrastructure.participation.contest_result import ContestResultModel
+from infrastructure.qualifications.qualification import QualificationModel
+from infrastructure.sport.coach_link import CoachLinkModel
 
 Q = QualificationModel
 S = QualificationStatus
@@ -33,6 +36,38 @@ class QualificationRepository:
         await self._db.flush()
         await self._db.refresh(item)
         return item
+
+    async def by_token(self, token: str) -> QualificationModel | None:
+        """Возвращает квалификацию по токену QR-проверки или None."""
+        return await self._db.scalar(select(Q).where(Q.token == token))
+
+    async def own_result(self, result_id: int, user_id: UUID) -> bool:
+        """Проверяет, что место в протоколе принадлежит человеку."""
+        query = (
+            select(ContestResultModel.id)
+            .join(ContestApplicationModel, ContestApplicationModel.id == ContestResultModel.application_id)
+            .where(ContestResultModel.id == result_id, ContestResultModel.user_id == user_id,
+                   ContestResultModel.place.is_not(None), ContestApplicationModel.status == ApplicationStatus.APPROVED)
+        )
+        return await self._db.scalar(query) is not None
+
+    async def results(self, user_id: UUID) -> Sequence[ContestResultModel]:
+        """Возвращает места человека в протоколах, новые первыми."""
+        query = (
+            select(ContestResultModel)
+            .join(ContestApplicationModel, ContestApplicationModel.id == ContestResultModel.application_id)
+            .where(ContestResultModel.user_id == user_id, ContestResultModel.place.is_not(None),
+                   ContestApplicationModel.status == ApplicationStatus.APPROVED)
+            .order_by(ContestResultModel.created_at.desc())
+        )
+        return (await self._db.scalars(query)).all()
+
+    async def contests(self, ids: Sequence[int]) -> dict[int, ContestModel]:
+        """Возвращает соревнования по id: id → соревнование."""
+        if not ids:
+            return {}
+        items = await self._db.scalars(select(ContestModel).where(ContestModel.id.in_(set(ids))))
+        return {item.id: item for item in items.all()}
 
     async def flush(self) -> None:
         """Сбрасывает накопленные изменения сессии в БД."""
@@ -72,6 +107,15 @@ class QualificationRepository:
             found.setdefault(item.user_id, item)
         return found
 
+    async def active_coaches(self, athlete_id: UUID) -> list[UUID]:
+        """Возвращает id тренеров с активной связью со спортсменом."""
+        rows = await self._db.scalars(
+            select(CoachLinkModel.coach_id)
+            .where(CoachLinkModel.athlete_id == athlete_id, CoachLinkModel.status == CoachLinkStatus.ACTIVE)
+            .distinct()
+        )
+        return list(rows.all())
+
     async def expiring(self, until: date) -> Sequence[QualificationModel]:
         """Возвращает действующие разряды и категории, истекающие не позднее until."""
         query = select(Q).where(Q.status == S.APPROVED, Q.valid_until.is_not(None), Q.valid_until <= until)
@@ -80,9 +124,14 @@ class QualificationRepository:
     async def coach_athletes(self, coach_id: UUID) -> Sequence[UserModel]:
         """Возвращает активных спортсменов из заявок, созданных тренером."""
         A, M = ContestApplicationModel, ContestApplicationMemberModel
-        query = (select(UserModel).join(M, M.user_id == UserModel.id).join(A, A.id == M.application_id)
-                 .where(A.created_by == coach_id, A.created_as == ApplicationCreator.COACH, UserModel.is_active)
-                 .distinct().order_by(UserModel.last_name, UserModel.first_name))
+        applied = (select(M.user_id).join(A, A.id == M.application_id)
+                   .where(A.created_by == coach_id, A.created_as == ApplicationCreator.COACH))
+        linked = select(CoachLinkModel.athlete_id).where(
+            CoachLinkModel.coach_id == coach_id, CoachLinkModel.status == CoachLinkStatus.ACTIVE
+        )
+        query = (select(UserModel)
+                 .where(or_(UserModel.id.in_(applied), UserModel.id.in_(linked)), UserModel.is_active)
+                 .order_by(UserModel.last_name, UserModel.first_name))
         return (await self._db.scalars(query)).all()
 
     async def judges(self, q: str | None) -> Sequence[UserModel]:

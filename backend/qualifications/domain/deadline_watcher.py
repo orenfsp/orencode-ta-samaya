@@ -6,6 +6,7 @@ from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core.config import Settings
+from infrastructure.enums import QualificationKind
 from notifications.domain.notifications import Notifications
 from qualifications.domain.qualifications import link_for, today
 from qualifications.repositories.pg_deadline_notices import DeadlineNoticeRepository
@@ -28,8 +29,8 @@ class DeadlineWatcher:
         sent = 0
         now = today()
         async with self._sessions() as db:
-            notices, notifications = DeadlineNoticeRepository(db), self._notifications(db)
-            for item in await QualificationRepository(db).expiring(now + timedelta(days=self._thresholds[0])):
+            notices, notifications, repository = DeadlineNoticeRepository(db), self._notifications(db), QualificationRepository(db)
+            for item in await repository.expiring(now + timedelta(days=self._thresholds[0])):
                 if item.valid_until is None:
                     continue
                 left = (item.valid_until - now).days
@@ -39,6 +40,10 @@ class DeadlineWatcher:
                 await notifications.qualification_expiring(
                     item.user_id, item.item_name, f"{item.valid_until:%d.%m.%Y}", max(left, 0) if threshold else 0,
                     link_for(item.kind),
+                )
+                coaches = await repository.active_coaches(item.user_id) if item.kind == QualificationKind.RANK else []
+                await notifications.qualification_expiring_watchers(
+                    item.user_id, coaches, item.item_name, f"{item.valid_until:%d.%m.%Y}", max(left, 0) if threshold else 0,
                 )
                 sent += 1
             await db.commit()

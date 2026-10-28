@@ -7,7 +7,7 @@ from auth.dependencies import CurrentUser, require_role
 from core.request import ClientIp
 from infrastructure.enums import QualificationKind, QualificationStatus, Role
 from qualifications.dependencies import QualificationsDep
-from qualifications.features.schemas import PreviewOut, QualificationOut, RejectIn
+from qualifications.features.schemas import ApproveIn, PreviewOut, QualificationOut, RejectIn
 
 router = APIRouter(prefix="/admin/qualifications", tags=["Разряды и категории: федерация"])
 Federation = Annotated[CurrentUser, Depends(require_role(Role.FEDERATION))]
@@ -33,10 +33,14 @@ async def preview(qualification_id: QualificationId, _: Federation, qualificatio
 
 @router.post("/{qualification_id}/approve", summary="Присвоить")
 async def approve(
-    qualification_id: QualificationId, user: Federation, ip: ClientIp, qualifications: QualificationsDep
+    qualification_id: QualificationId,
+    body: Annotated[ApproveIn, Body()],
+    user: Federation,
+    ip: ClientIp,
+    qualifications: QualificationsDep,
 ) -> QualificationOut:
-    """Одобряет заявку на разряд или категорию."""
-    return QualificationOut.of(await qualifications.approve(user.id, qualification_id, ip))
+    """Одобряет заявку на разряд или категорию с номером и датой приказа."""
+    return QualificationOut.of(await qualifications.approve(user.id, qualification_id, body.order_number, body.order_date, ip))
 
 
 @router.post("/{qualification_id}/reject", summary="Отказать с причиной")

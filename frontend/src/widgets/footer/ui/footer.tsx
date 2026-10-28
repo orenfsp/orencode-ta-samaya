@@ -1,3 +1,5 @@
+import { Link } from 'react-router'
+import { routes } from '@/shared/config'
 import { BrandLogo, IconArrowUp } from '@/shared/ui'
 
 export function Footer() {
@@ -22,6 +24,17 @@ export function Footer() {
             </span>
           </button>
         </div>
+        <nav aria-label="Полезное" className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          <Link to={routes.glossary} className="link-underline text-ink">
+            Справочник понятий
+          </Link>
+          <Link to={routes.ratings} className="link-underline text-ink">
+            Рейтинг спортсменов
+          </Link>
+          <Link to={routes.calendar} className="link-underline text-ink">
+            Календарь
+          </Link>
+        </nav>
         <p className="text-sm text-muted">
           Региональное отделение Федерации спортивного программирования Оренбургской области ©{year}
         </p>

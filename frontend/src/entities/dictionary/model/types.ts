@@ -1,4 +1,4 @@
-/** Типы по контракту docs/004_tz_dictionaries.md (с правками: без sort_order, 409 in_use, 422 по полям) */
+/** Типы по контракту API_DOCUMENTATION.md (с правками: без sort_order, 409 in_use, 422 по полям) */
 
 export type DictionaryKey =
   | 'disciplines'

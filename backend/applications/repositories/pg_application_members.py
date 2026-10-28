@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 from uuid import UUID
 
@@ -6,7 +7,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
-from infrastructure.enums import Role, RoleStatus
+from infrastructure.disputes.violation import ViolationModel
+from infrastructure.enums import Role, RoleStatus, Sanction, ViolationStatus
 from infrastructure.account.user import UserModel
 from infrastructure.account.user_role import UserRoleModel
 
@@ -80,3 +82,15 @@ class ApplicationMemberRepository:
             .limit(limit)
         )
         return items.all()
+
+    async def suspensions(self, user_ids: Sequence[UUID], on: date) -> dict[UUID, date]:
+        """Возвращает действующие на дату и будущие отстранения людей: человек → последний день."""
+        if not user_ids:
+            return {}
+        V = ViolationModel
+        rows = await self._db.execute(
+            select(V.user_id, func.max(V.suspended_until))
+            .where(V.user_id.in_(user_ids), V.status == ViolationStatus.DECIDED, V.sanction == Sanction.SUSPENSION, V.suspended_until >= on)
+            .group_by(V.user_id)
+        )
+        return {user_id: until for user_id, until in rows.tuples() if until is not None}

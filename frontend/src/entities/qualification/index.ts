@@ -20,5 +20,7 @@ export type {
   QualificationKind,
   QualificationPerson,
   QualificationStatus,
+  ResultChoice,
+  VerifiedQualification,
 } from './model/types'
 export { ValidityTag } from './ui/validity-tag'

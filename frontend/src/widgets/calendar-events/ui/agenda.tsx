@@ -49,10 +49,12 @@ export function Agenda({
   items,
   from,
   highlightId,
+  selectedDay,
 }: {
   items: CalendarItem[]
   /** Первый день показанного периода */
   from: string
+  selectedDay?: string
   highlightId?: string | null
 }) {
   const groups = new Map<string, CalendarItem[]>()
@@ -63,7 +65,11 @@ export function Agenda({
   return (
     <div className="flex flex-col gap-6">
       {[...groups.entries()].map(([day, dayItems]) => (
-        <section key={day} id={`day-${day}`} className="scroll-mt-28">
+        <section
+          key={day}
+          id={`day-${day}`}
+          className={cn('scroll-mt-28', selectedDay === day && 'rounded-lg bg-primary-soft p-3')}
+        >
           <h3 className="mb-2 font-mono text-sm text-ink first-letter:uppercase">{dayLabel(day)}</h3>
           <ul className="divide-y divide-line-soft overflow-hidden card">
             {dayItems.map((item) => (

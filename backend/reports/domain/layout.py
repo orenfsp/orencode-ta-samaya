@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 
-from infrastructure.enums import CONTEST_STATUS_TITLES, Role
+from infrastructure.enums import CONTEST_STATUS_TITLES, TRAINING_STAGE_TITLES, Role
 from infrastructure.qualifications.qualification import QualificationModel
 from infrastructure.squads.squad import SquadModel
 from reports.domain.person_report import PersonReport, full_name
@@ -55,8 +55,17 @@ def facts(report: PersonReport) -> list[tuple[str, str]]:
     user = report.user
     rows = [
         ("Дата рождения", _day(user.birth_date)),
+        ("Почта", user.email),
+        ("Codeforces", user.codeforces_handle or "—"),
         ("Роли", ", ".join(ROLE_TITLES[role] for role in report.roles) or "—"),
     ]
+    if report.profile:
+        profile = report.profile
+        rows.extend([
+            ("Организация", profile.organization.short_name or profile.organization.name if profile.organization else "Без организации" if profile.no_organization else "—"),
+            ("Год начала подготовки", str(profile.start_year) if profile.start_year else "—"),
+            ("Этап подготовки", TRAINING_STAGE_TITLES[profile.training_stage] if profile.training_stage else "—"),
+        ])
     if user.municipality:
         rows.append(("Муниципалитет", user.municipality.name))
     if user.academic_group:
@@ -74,12 +83,13 @@ def sections(report: PersonReport) -> list[Section]:
         Section(
             "starts",
             "Соревнования",
-            ("Даты", "Соревнование", "Дисциплина", "Команда", "Место", "Баллы"),
+            ("Даты", "Соревнование", "Дисциплина", "Уровень", "Команда", "Место", "Баллы"),
             [
                 [
                     _dates(item.contest.starts_on, item.contest.ends_on),
                     item.contest.title,
                     item.contest.discipline.name,
+                    item.contest.contest_level.name,
                     item.team_name or "—",
                     item.place if item.place is not None else ("Дисквалификация" if item.entered else "—"),
                     item.points,

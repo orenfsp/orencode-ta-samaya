@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from infrastructure.enums import RatingSeason
+
 
 class RefOut(BaseModel):
     id: int
@@ -21,6 +23,10 @@ class LineOut(BaseModel):
     municipality: RefOut | None
     points: int
     contests: int
+    base: int
+    podiums: int
+    factor: float | None
+    explain: str
 
 
 class BoardOut(BaseModel):
@@ -55,8 +61,34 @@ class StandingOut(BaseModel):
     total: int
     points: int
     contests: int
+    base: int
+    podiums: int
+    factor: float | None
+    explain: str
     scores: list[ScoreOut]
 
 
 class StandingList(BaseModel):
     items: list[StandingOut]
+
+
+class RulesOut(BaseModel):
+    stability_factor: float
+    podium_place: int
+    podium_count: int
+    season: RatingSeason
+    season_title: str
+    since: date
+    formula: str
+
+
+class ReasonOut(BaseModel):
+    code: str
+    text: str
+
+
+class StatusOut(BaseModel):
+    rules: RulesOut
+    in_rating: bool
+    standings: list[StandingOut]
+    reasons: list[ReasonOut]

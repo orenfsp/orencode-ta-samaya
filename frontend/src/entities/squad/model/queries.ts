@@ -6,8 +6,8 @@ export const squadKeys = {
   all: ['squads'] as const,
   list: (target: SquadTarget) => ['squads', 'list', target] as const,
   badges: (userId: string) => ['squads', 'badges', userId] as const,
-  draft: (target: SquadTarget, mainSize: number, reserveSize: number) =>
-    ['squads', 'draft', target, mainSize, reserveSize] as const,
+  draft: (target: SquadTarget, mainSize: number, reserveSize: number, minRank?: number) =>
+    ['squads', 'draft', target, mainSize, reserveSize, minRank ?? null] as const,
 }
 
 /** Действующая сборная дисциплины и группы или null, если её нет */
@@ -39,10 +39,17 @@ export function useSquadBadges(userId: string | undefined) {
   })
 }
 
-export function useSquadDraft(target: SquadTarget, mainSize: number, reserveSize: number, enabled: boolean) {
+export function useSquadDraft(
+  target: SquadTarget,
+  mainSize: number,
+  reserveSize: number,
+  enabled: boolean,
+  minRank?: number,
+  excludeIds: string[] = [],
+) {
   return useQuery({
-    queryKey: squadKeys.draft(target, mainSize, reserveSize),
-    queryFn: ({ signal }) => squadApi.draft(target, mainSize, reserveSize, signal),
+    queryKey: [...squadKeys.draft(target, mainSize, reserveSize, minRank), excludeIds] as const,
+    queryFn: ({ signal }) => squadApi.draft(target, mainSize, reserveSize, minRank, excludeIds, signal),
     enabled,
     placeholderData: keepPreviousData,
   })

@@ -1,8 +1,11 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from datetime import date
 from typing import Any
 from uuid import UUID
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from audit.domain.actions import AuditAction
 from audit.domain.audit import Audit
@@ -15,6 +18,7 @@ from infrastructure.base import DictionaryColumns
 from infrastructure.dictionaries.dictionary_academic_group import DictionaryAcademicGroupModel
 from infrastructure.dictionaries.dictionary_age_group import DictionaryAgeGroupModel
 from infrastructure.dictionaries.dictionary_discipline import DictionaryDisciplineModel
+from infrastructure.dictionaries.dictionary_rank_type import DictionaryRankTypeModel
 from infrastructure.squads.squad import SquadModel
 from infrastructure.squads.squad_member import SquadMemberModel
 from notifications.domain.notifications import Notifications
@@ -27,6 +31,11 @@ class NoCandidates(AppError):
     status_code = 409
     code = "no_candidates"
     message = "В рейтинге этой группы пока никого нет"
+
+
+ROOT = Path(__file__).resolve().parent.parent
+ASSETS = ROOT.parent / "documents" / "assets"
+ORDER_TEMPLATES = Environment(loader=FileSystemLoader(ROOT / "templates"), autoescape=select_autoescape(["html"]))
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +54,7 @@ class Draft:
     available: int
     picks: list[Pick]
     current: SquadModel | None
+    excluded: list[Line] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +67,8 @@ class SquadForm:
     order_number: str
     order_date: date
     order_file_id: UUID
+    min_rank_id: int | None = None
+    exclude_ids: tuple[UUID, ...] = ()
 
 
 class Squads:
@@ -112,21 +124,62 @@ class Squads:
         ]
 
     async def draft(
-        self, discipline_id: int, kind: GroupKind, group_id: int, main_size: int, reserve_size: int
+        self,
+        discipline_id: int,
+        kind: GroupKind,
+        group_id: int,
+        main_size: int,
+        reserve_size: int,
+        min_rank_id: int | None = None,
+        exclude_ids: Sequence[UUID] = (),
     ) -> Draft:
-        """Строит черновик состава сборной: основной и резерв по рейтингу, с учётом уже утверждённой сборной."""
+        """Строит черновик состава по рейтингу; исключённых федерацией вручную заменяют следующие по рейтингу."""
         discipline, group = await self._target(discipline_id, kind, group_id)
-        board, scores = await self._ratings.standings(discipline.id, kind, group.id)
+        board, scores = await self._ratings.standings(discipline.id, kind, group.id, None, min_rank_id)
         ordered = self.ordered(board.lines, scores)
-        picks = [Pick(line, index >= main_size) for index, line in enumerate(ordered[: main_size + reserve_size])]
+        excluded = [line for line in ordered if line.user.id in set(exclude_ids)]
+        chosen = [line for line in ordered if line.user.id not in set(exclude_ids)]
+        picks = [Pick(line, index >= main_size) for index, line in enumerate(chosen[: main_size + reserve_size])]
         current = await self._squads.find(
             discipline.id, group.id if kind == "age" else None, group.id if kind == "academic" else None
         )
-        return Draft(discipline, kind, group, main_size, reserve_size, len(board.lines), picks, current)
+        return Draft(discipline, kind, group, main_size, reserve_size, len(chosen), picks, current, excluded)
+
+    async def rank_name(self, rank_id: int | None) -> str | None:
+        """Название разряда для текста приказа или None, если фильтра нет."""
+        if rank_id is None:
+            return None
+        item = await self._dictionary.get(DictionaryRankTypeModel, rank_id)
+        return item.name if item else None
+
+    async def order_draft(self, draft: Draft, number: str | None, order_date: date | None, min_rank: str | None) -> bytes:
+        """Формирует PDF «Список сборной и проект приказа» по черновику состава."""
+        today = self._ratings.today()
+        rules = await self._ratings.rules()
+
+        def row(line: Line) -> dict[str, Any]:
+            """Строка таблицы приказа: ФИО, дата рождения, муниципалитет, баллы."""
+            user = line.user
+            return {
+                "name": full_name(user), "birth": user.birth_date.strftime("%d.%m.%Y"),
+                "municipality": user.municipality.name if user.municipality else "—", "points": line.points,
+            }
+
+        html = ORDER_TEMPLATES.get_template("order_draft.html").render(
+            number=number, order_date=order_date.strftime("%d.%m.%Y") if order_date else None,
+            discipline=draft.discipline.name, group=draft.group.name, min_rank=min_rank,
+            since=self._ratings.since(today, rules.season).strftime("%d.%m.%Y"), until=today.strftime("%d.%m.%Y"),
+            main=[row(pick.line) for pick in draft.picks if not pick.is_reserve],
+            reserve=[row(pick.line) for pick in draft.picks if pick.is_reserve],
+            excluded=[row(line) for line in draft.excluded],
+        )
+        from weasyprint import HTML
+
+        return HTML(string=html, base_url=str(ASSETS) + "/").write_pdf() or b""
 
     async def approve(self, actor_id: UUID, form: SquadForm, ip: str | None) -> SquadModel:
         """Утверждает состав сборной приказом, заменяя предыдущую утверждённую сборную по этой группе, если была."""
-        draft = await self.draft(form.discipline_id, form.group_kind, form.group_id, form.main_size, form.reserve_size)
+        draft = await self.draft(form.discipline_id, form.group_kind, form.group_id, form.main_size, form.reserve_size, form.min_rank_id, form.exclude_ids)
         errors: dict[str, list[str]] = {}
         number = form.order_number.strip()
         if not number:
@@ -184,6 +237,7 @@ class Squads:
                 {"user_id": str(pick.line.user.id), "name": full_name(pick.line.user), "reserve": pick.is_reserve}
                 for pick in draft.picks
             ],
+            "excluded": [{"user_id": str(line.user.id), "name": full_name(line.user)} for line in draft.excluded],
         }
         if replaced is not None:
             payload["previous"] = replaced

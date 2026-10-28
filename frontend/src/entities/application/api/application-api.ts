@@ -29,6 +29,12 @@ export const applicationApi = {
       method: 'POST',
       body: { member_ids: memberIds },
     }),
+  /** Та же команда на новое соревнование: состав и капитан из прошлой заявки, проверки — как у новой */
+  repeat: (contestId: number, sourceId: number) =>
+    request<Application>(`/contests/${contestId}/applications/repeat`, {
+      method: 'POST',
+      body: { source_application_id: sourceId },
+    }),
   rename: (id: number, team_name: string) =>
     request<Application>(`/applications/${id}`, { method: 'PATCH', body: { team_name } }),
   addMember: (id: number, user_id: string) =>

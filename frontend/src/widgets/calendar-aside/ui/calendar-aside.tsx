@@ -10,9 +10,19 @@ import {
   todayOrenburg,
   useCalendarEvents,
 } from '@/entities/calendar'
+import { useMe } from '@/entities/session'
 import { routes } from '@/shared/config'
 import { cn } from '@/shared/lib'
-import { Button, IconArrowRight, IconButton, IconChevronLeft, IconChevronRight, Skeleton } from '@/shared/ui'
+import {
+  Button,
+  IconArrowRight,
+  IconButton,
+  IconChevronLeft,
+  IconChevronRight,
+  Skeleton,
+  Tabs,
+  ErrorState,
+} from '@/shared/ui'
 
 const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -40,10 +50,19 @@ export function CalendarAside({
   markLabel?: string
   className?: string
 }) {
+  const { data: me } = useMe()
+  const [minePreference, setMine] = useState(() => {
+    try {
+      return localStorage.getItem('fsp.calendar.mine') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const mineOnly = Boolean(me && minePreference)
   const today = todayOrenburg()
   const [month, setMonth] = useState(today.slice(0, 7))
   const [from, to] = monthBounds(month)
-  const feed = useCalendarEvents(from, to, '', '')
+  const feed = useCalendarEvents(from, to, '', '', { mine: mineOnly || undefined })
   const days = calendarDays(month)
   const items = feed.data?.items ?? []
   const upcoming = marks
@@ -54,6 +73,26 @@ export function CalendarAside({
   return (
     <aside className={cn('flex flex-col gap-5', className)} aria-label="Календарь">
       <section className="flex flex-col gap-3 card p-4">
+        {me && (
+          <Tabs
+            aria-label="Соревнования календаря"
+            fullWidth
+            value={mineOnly ? 'mine' : 'all'}
+            items={[
+              { value: 'all', label: 'Все' },
+              { value: 'mine', label: 'Только мои' },
+            ]}
+            onChange={(value) => {
+              setMine(value === 'mine')
+              try {
+                localStorage.setItem('fsp.calendar.mine', String(value === 'mine'))
+              } catch {
+                /* Хранилище может быть недоступно. */
+              }
+            }}
+          />
+        )}
+        {feed.isError && <ErrorState error={feed.error} onRetry={() => feed.refetch()} />}
         <div className="flex items-center justify-between gap-2">
           <IconButton
             aria-label="Предыдущий месяц"
@@ -91,7 +130,7 @@ export function CalendarAside({
                 return (
                   <Link
                     key={date}
-                    to={`${routes.calendar}?month=${month}&day=${date}`}
+                    to={`${routes.calendar}?month=${month}&day=${date}${mineOnly ? '&mine=true' : ''}`}
                     aria-label={`${dayLabel(date)}${mine ? ', ваше соревнование' : ''}${dayItems.length ? `, в календаре: ${dayItems.length}` : ''}`}
                     tabIndex={inMonth ? 0 : -1}
                     className={cn(
@@ -127,9 +166,11 @@ export function CalendarAside({
           <span className="flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" /> Соревнование
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="size-1.5 rounded-full bg-live" aria-hidden="true" /> Событие ФСП
-          </span>
+          {!mineOnly && (
+            <span className="flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-live" aria-hidden="true" /> Событие ФСП
+            </span>
+          )}
         </div>
       </section>
 

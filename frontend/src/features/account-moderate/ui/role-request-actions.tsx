@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { fullName } from '@/entities/session'
-import { Button, IconButton, IconDots, IconRefresh, Menu, ReasonModal } from '@/shared/ui'
+import { Button, ConfirmModal, IconButton, IconDots, IconRefresh, Menu, ReasonModal } from '@/shared/ui'
 import { resetConsequence, roleTitles } from '../model/labels'
 import type { RoleModeration } from '../model/queries'
 import type { RoleRequest } from '../model/types'
 
-type Dialog = 'reject' | 'reset' | null
+type Dialog = 'approve' | 'reject' | 'reset' | null
 
 /**
  * Действия над ролью в строке таблицы модерации: заявку на проверке — подтвердить или отклонить с причиной,
@@ -32,7 +32,7 @@ export function RoleRequestActions({
         <span className="text-sm text-muted">Ваша роль</span>
       ) : item.status === 'pending' ? (
         <>
-          <Button size="sm" loading={approving} onClick={() => actions.approve.mutate(item)}>
+          <Button size="sm" loading={approving} onClick={() => setDialog('approve')}>
             Подтвердить
           </Button>
           <Button size="sm" variant="ghost" disabled={approving} onClick={() => setDialog('reject')}>
@@ -62,6 +62,17 @@ export function RoleRequestActions({
           )}
         />
       )}
+
+      <ConfirmModal
+        open={dialog === 'approve'}
+        onClose={close}
+        onConfirm={async () => {
+          await actions.approve.mutateAsync(item)
+        }}
+        title="Подтвердить роль?"
+        description={`${name} получит доступ к кабинету и действиям роли «${roleTitles[item.role]}».`}
+        confirmLabel="Подтвердить роль"
+      />
 
       <ReasonModal
         open={dialog === 'reject'}

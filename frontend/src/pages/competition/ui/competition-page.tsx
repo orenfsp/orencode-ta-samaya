@@ -21,6 +21,8 @@ import {
 } from '@/features/application-manage'
 import { ModerationModal } from '@/features/application-moderate'
 import { DocumentRow } from '@/features/competition-manage'
+import { ContestDisputesSection } from '@/features/dispute-manage'
+import { ContestEvskSection } from '@/features/evsk-rules'
 import { JudgeDocumentsSection } from '@/features/judge-documents'
 import { ApiError } from '@/shared/api'
 import { routes } from '@/shared/config'
@@ -295,6 +297,12 @@ export function CompetitionPage() {
               {item.contest_type.name} · {item.contest_level.name}
             </Fact>
             <Fact label="Формат">{item.contest_format.name}</Fact>
+            {item.calendar_plan !== 'none' && (
+              <Fact label="Календарный план">
+                {item.calendar_plan_title}
+                {item.calendar_plan_number && `, ${item.calendar_plan_number}`}
+              </Fact>
+            )}
             {groups.length > 0 && (
               <Fact label="Группы">
                 <span className="mt-1 flex flex-wrap gap-1.5">
@@ -320,6 +328,13 @@ export function CompetitionPage() {
       <ResultsSection item={item} scope={scope} />
 
       <JudgeDocumentsSection contest={item} />
+
+      <ContestEvskSection contestId={item.id} enabled={Boolean(scope)} />
+
+      <ContestDisputesSection
+        contestId={item.id}
+        held={item.status === 'in_progress' || item.status === 'completed'}
+      />
 
       <DocumentsSection item={item} scope={scope} />
 

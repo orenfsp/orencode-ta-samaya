@@ -3,6 +3,8 @@ export { resultKeys, useContestResults, useResultsForm } from './model/queries'
 export type {
   ContestPlace,
   ContestResults,
+  ImportPreview,
+  ImportRow,
   PlaceInput,
   ResultAthlete,
   ResultEntry,

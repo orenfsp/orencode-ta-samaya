@@ -1,4 +1,4 @@
-/** Статья новостей по контракту docs/001_api_map.md, раздел «Новости» */
+/** Статья новостей по контракту API_DOCUMENTATION.md, раздел «Новости» */
 
 export type Block =
   | { type: 'heading'; text: string; level: 2 | 3 }

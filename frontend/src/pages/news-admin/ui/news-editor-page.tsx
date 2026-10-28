@@ -36,6 +36,7 @@ import {
   Textarea,
   showToast,
 } from '@/shared/ui'
+import { newsConfirmation } from '../model/transition-confirmation'
 import { emptyBlock } from './block-defaults'
 import { AddBlockBar, BlockEditor } from './block-editor'
 import { useUploads } from './use-upload'
@@ -95,6 +96,7 @@ function Editor({ initial }: { initial?: AdminArticle }) {
   const [dirty, setDirty] = useState(false)
   const [touched, setTouched] = useState(false)
   const [preview, setPreview] = useState(false)
+  const [confirming, setConfirming] = useState<NewsTransition | null>(null)
   // Блокировка ухода читает ref: после «Создать» уходим на страницу правки сразу, не дожидаясь рендера
   const dirtyRef = useRef(false)
   const blocker = useBlocker(() => dirtyRef.current || uploads.busy)
@@ -253,7 +255,7 @@ function Editor({ initial }: { initial?: AdminArticle }) {
                   <Button
                     disabled={dirty || busy}
                     loading={transition.isPending && transition.variables === 'publish'}
-                    onClick={() => transition.mutate('publish')}
+                    onClick={() => setConfirming('publish')}
                   >
                     Опубликовать
                   </Button>
@@ -267,7 +269,7 @@ function Editor({ initial }: { initial?: AdminArticle }) {
                       variant="ghost"
                       disabled={dirty || busy}
                       loading={transition.isPending && transition.variables === 'unpublish'}
-                      onClick={() => transition.mutate('unpublish')}
+                      onClick={() => setConfirming('unpublish')}
                     >
                       Снять с публикации
                     </Button>
@@ -276,7 +278,7 @@ function Editor({ initial }: { initial?: AdminArticle }) {
                 {locked && (
                   <Button
                     loading={transition.isPending && transition.variables === 'restore'}
-                    onClick={() => transition.mutate('restore')}
+                    onClick={() => setConfirming('restore')}
                   >
                     Вернуть в черновики
                   </Button>
@@ -367,6 +369,17 @@ function Editor({ initial }: { initial?: AdminArticle }) {
           />
         </article>
       </Modal>
+
+      <ConfirmModal
+        open={confirming !== null}
+        onClose={() => setConfirming(null)}
+        title={newsConfirmation[confirming ?? 'publish'].title}
+        description={`«${current?.title ?? ''}». ${newsConfirmation[confirming ?? 'publish'].description}`}
+        confirmLabel={newsConfirmation[confirming ?? 'publish'].label}
+        onConfirm={async () => {
+          if (confirming) await transition.mutateAsync(confirming)
+        }}
+      />
 
       <ConfirmModal
         open={blocker.state === 'blocked'}

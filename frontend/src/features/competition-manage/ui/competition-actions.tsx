@@ -7,6 +7,7 @@ import {
   isPublic,
   statusActions,
   useRatingDefaults,
+  type CompetitionAction,
   type CompetitionScope,
   type ManagedCompetition,
   type RatingPoint,
@@ -33,6 +34,7 @@ import {
   type MenuItem,
 } from '@/shared/ui'
 import type { CompetitionActions } from '../model/use-competition-actions'
+import { transitionConfirmation } from '../model/transition-confirmation'
 import { RatingPointsEditor } from './rating-points-editor'
 
 type Dialog = 'cancel' | 'delete' | 'verify' | 'points' | 'reject' | 'revoke' | null
@@ -50,6 +52,8 @@ export function CompetitionActions({
   onEdit: () => void
 }) {
   const [dialog, setDialog] = useState<Dialog>(null)
+  const [transition, setTransition] = useState<CompetitionAction | null>(null)
+  const [requesting, setRequesting] = useState(false)
   // Последнее открытое окно остаётся в DOM, пока закрывается: так у него есть анимация выхода.
   // Каждое новое открытие — новый ключ, чтобы форма начиналась с чистого листа
   const [shown, setShown] = useState<{ dialog: Dialog; key: number }>({ dialog: null, key: 0 })
@@ -62,12 +66,14 @@ export function CompetitionActions({
     ...(canEdit(item.status)
       ? [{ id: 'edit', label: 'Изменить', icon: <IconPencil size={18} />, onSelect: onEdit }]
       : []),
-    ...statusActions[item.status].map((action) => ({
-      id: action,
-      label: actionLabel(action, item.status),
-      icon: <IconArrowRight size={18} />,
-      onSelect: () => actions.transition.mutate({ item, action }),
-    })),
+    ...statusActions[item.status]
+      .filter((action) => action !== 'publish')
+      .map((action) => ({
+        id: action,
+        label: actionLabel(action, item.status),
+        icon: <IconArrowRight size={18} />,
+        onSelect: () => setTransition(action),
+      })),
     ...(!admin &&
     (verification === 'not_requested' || verification === 'rejected') &&
     item.status !== 'archived'
@@ -77,7 +83,7 @@ export function CompetitionActions({
             label: 'Запросить верификацию',
             description: 'Федерация проверит и настроит баллы за места',
             icon: <IconCheck size={18} />,
-            onSelect: () => actions.requestVerification.mutate(item),
+            onSelect: () => setRequesting(true),
           },
         ]
       : []),
@@ -159,6 +165,23 @@ export function CompetitionActions({
             size="sm"
           />
         )}
+      />
+
+      <TransitionConfirm
+        item={item}
+        action={transition}
+        actions={actions}
+        onClose={() => setTransition(null)}
+      />
+      <ConfirmModal
+        open={requesting}
+        onClose={() => setRequesting(false)}
+        onConfirm={async () => {
+          await actions.requestVerification.mutateAsync(item)
+        }}
+        title="Отправить соревнование на верификацию?"
+        description={`«${item.title}». Федерация получит запрос на проверку и настройку баллов за места.`}
+        confirmLabel="Отправить запрос"
       />
 
       <ReasonModal
@@ -278,5 +301,62 @@ function PointsModal({
         )}
       </div>
     </Modal>
+  )
+}
+
+/** Публикация черновика с карточки после явного подтверждения. */
+export function PublishCompetitionButton({
+  item,
+  actions,
+}: {
+  item: ManagedCompetition
+  actions: CompetitionActions
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      {item.status === 'draft' && (
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={actions.transition.isPending}
+          onClick={() => setOpen(true)}
+        >
+          Опубликовать
+        </Button>
+      )}
+      <TransitionConfirm
+        item={item}
+        action={open ? 'publish' : null}
+        actions={actions}
+        onClose={() => setOpen(false)}
+      />
+    </>
+  )
+}
+
+function TransitionConfirm({
+  item,
+  action,
+  actions,
+  onClose,
+}: {
+  item: ManagedCompetition
+  action: CompetitionAction | null
+  actions: CompetitionActions
+  onClose: () => void
+}) {
+  const details = transitionConfirmation[action ?? 'publish']
+  return (
+    <ConfirmModal
+      open={action !== null}
+      onClose={onClose}
+      onConfirm={async () => {
+        if (action) await actions.transition.mutateAsync({ item, action })
+      }}
+      title={details.title}
+      description={`«${item.title}». ${details.description}`}
+      confirmLabel={actionLabel(action ?? 'publish', item.status)}
+    />
   )
 }

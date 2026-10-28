@@ -11,6 +11,7 @@ from infrastructure.qualifications.judge_assignment import JudgeAssignmentModel
 from infrastructure.qualifications.qualification import QualificationModel
 from infrastructure.squads.squad import SquadModel
 from infrastructure.account.user import UserModel
+from infrastructure.sport.athlete_profile import AthleteProfileModel
 from qualifications.repositories.pg_qualifications import QualificationRepository
 from ratings.domain.ratings import Ratings, Standing
 from reports.repositories.pg_reports import Coached, ReportRepository, Start
@@ -54,6 +55,7 @@ class PersonReport:
     until: date
     created: datetime
     roles: list[Role]
+    profile: AthleteProfileModel | None = None
     starts: list[Start] = field(default_factory=list)
     standings: list[Standing] = field(default_factory=list)
     ranks: list[QualificationModel] = field(default_factory=list)
@@ -113,6 +115,7 @@ class PersonReports:
         roles = [item.role for item in user.roles if item.status == RoleStatus.VERIFIED]
         history = [item for item in await self._qualifications.history([user_id]) if item.status in SHOWN]
         report = PersonReport(user=user, since=start, until=end, created=datetime.now(ZoneInfo(ZONE)), roles=roles)
+        report.profile = await self._reports.profile(user_id)
         report.starts = await self._reports.starts(user_id, start, end)
         report.standings = await self._ratings.athlete(user_id) if Role.ATHLETE in roles else []
         report.ranks = [item for item in history if item.kind == QualificationKind.RANK]

@@ -2,10 +2,12 @@ import uuid
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, Text, Uuid, func, text
+from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, String, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from infrastructure.base import Base
+from infrastructure.contests.contest import ContestModel
+from infrastructure.participation.contest_result import ContestResultModel
 from infrastructure.dictionaries.dictionary_judge_category import DictionaryJudgeCategoryModel
 from infrastructure.dictionaries.dictionary_rank_type import DictionaryRankTypeModel
 from infrastructure.enums import QualificationKind, QualificationStatus
@@ -35,6 +37,11 @@ class QualificationModel(Base):
     rank_type_id: Mapped[int | None] = mapped_column(ForeignKey("dictionary_rank_types.id", ondelete="RESTRICT"))
     document_file_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("files.id", ondelete="RESTRICT"))
     basis: Mapped[str | None] = mapped_column(Text)
+    contest_result_id: Mapped[int | None] = mapped_column(ForeignKey("contest_results.id", ondelete="SET NULL"))
+    order_number: Mapped[str | None] = mapped_column(String(100))
+    order_date: Mapped[date | None] = mapped_column(Date)
+    token: Mapped[str | None] = mapped_column(String(32), unique=True)
+    signature: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[QualificationStatus] = mapped_column(Enum(QualificationStatus, name="qualification_status", values_callable=_values), index=True)
     reject_reason: Mapped[str | None] = mapped_column(Text)
     decided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
@@ -58,6 +65,18 @@ class QualificationModel(Base):
     )
 
     rank_type: Mapped[DictionaryRankTypeModel | None] = relationship(
+        lazy="selectin",
+    )
+
+    contest_result: Mapped[ContestResultModel | None] = relationship(
+        lazy="selectin",
+    )
+
+    basis_contest: Mapped[ContestModel | None] = relationship(
+        secondary="contest_results",
+        primaryjoin="QualificationModel.contest_result_id == ContestResultModel.id",
+        secondaryjoin="ContestResultModel.contest_id == ContestModel.id",
+        viewonly=True,
         lazy="selectin",
     )
 

@@ -39,6 +39,7 @@ export type {
   Page,
   ParticipationType,
   RatingPoint,
+  CalendarPlan,
   Ref,
   VerificationStatus,
 } from './model/types'

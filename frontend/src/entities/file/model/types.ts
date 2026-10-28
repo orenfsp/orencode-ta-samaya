@@ -1,4 +1,4 @@
-/** Файл в хранилище по контракту docs/001_api_map.md, раздел «Файлы» */
+/** Файл в хранилище по контракту API_DOCUMENTATION.md, раздел «Файлы» */
 export interface StoredFile {
   id: string
   original_name: string

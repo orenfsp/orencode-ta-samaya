@@ -21,7 +21,7 @@ class ItemOut(BaseModel):
     token: str
     number: str
     name: str
-    role: Literal["athlete", "coach", "judge"]
+    role: Literal["athlete", "coach", "judge", "organizer"]
     team: str | None
     place: int | None
 
@@ -46,6 +46,13 @@ class ContestRefOut(BaseModel):
     organizer: str
 
 
+class PanelLineOut(BaseModel):
+    name: str
+    position: str
+    category: str | None
+    valid_until: date | None
+
+
 class DocumentOut(BaseModel):
     valid: bool
     token: str
@@ -59,9 +66,10 @@ class DocumentOut(BaseModel):
     signer_position: str | None
     signer_name: str | None
     recipient: str
-    role: Literal["athlete", "coach", "judge"]
+    role: Literal["athlete", "coach", "judge", "organizer"]
     team: str | None
     place: int | None
     athletes: list[str]
     position: str | None
+    panel: list[PanelLineOut] = []
     contest: ContestRefOut

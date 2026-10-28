@@ -22,13 +22,15 @@ class CalendarRepository:
             statement = statement.with_for_update()
         return await self._db.scalar(statement.execution_options(populate_existing=True))
 
-    async def published(self, starts_before: datetime, ends_after: datetime, q: str) -> list[CalendarEventModel]:
+    async def published(self, starts_before: datetime, ends_after: datetime, q: str, online: bool | None = None) -> list[CalendarEventModel]:
         """Возвращает опубликованные события, пересекающиеся с периодом, с поиском по названию."""
         conditions = [
             CalendarEventModel.status == "published",
             CalendarEventModel.starts_at < starts_before,
             CalendarEventModel.ends_at >= ends_after,
         ]
+        if online is not None:
+            conditions.append(CalendarEventModel.is_online == online)
         if q:
             conditions.append(CalendarEventModel.title.icontains(q, autoescape=True))
         rows = await self._db.scalars(select(CalendarEventModel).where(*conditions))

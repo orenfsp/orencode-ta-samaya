@@ -89,6 +89,7 @@ export function Sidebar({
             to={item.to}
             end={item.end}
             onClick={onNavigate}
+            data-tour={item.to}
             className={({ isActive }) =>
               cn(
                 'group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-body transition-colors duration-150',
@@ -154,7 +155,9 @@ export function Sidebar({
           </span>
           <span className="truncate text-xs text-muted">{me.email}</span>
         </div>
-        <NotificationSheet role={role} unread={unread} />
+        <span data-tour="notifications" className="inline-flex rounded-md">
+          <NotificationSheet role={role} unread={unread} />
+        </span>
         <ThemeToggle className="size-9" />
         <IconButton
           aria-label="Выйти"

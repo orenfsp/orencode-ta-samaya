@@ -1,4 +1,7 @@
+from datetime import date
 from typing import Annotated, Literal
+from urllib.parse import quote
+from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Response, status
 
@@ -41,9 +44,11 @@ async def candidates(
     group_id: Annotated[int, Query(ge=1)],
     main_size: Annotated[int, Query(ge=1, le=100)],
     reserve_size: Annotated[int, Query(ge=0, le=100)] = 0,
+    min_rank_id: Annotated[int | None, Query(ge=1)] = None,
+    exclude_ids: Annotated[list[UUID] | None, Query(max_length=100)] = None,
 ) -> DraftOut:
-    """Показывает, кто войдёт в основной состав и резерв сборной, если утвердить её сейчас."""
-    draft = await squads.draft(discipline_id, group_kind, group_id, main_size, reserve_size)
+    """Показывает, кто войдёт в основной состав и резерв сборной; исключённых вручную заменяют следующие по рейтингу."""
+    draft = await squads.draft(discipline_id, group_kind, group_id, main_size, reserve_size, min_rank_id, exclude_ids or ())
     current = draft.current
     return DraftOut(
         title=f"Сборная {squads.title(draft.discipline, draft.group)}",
@@ -55,6 +60,7 @@ async def candidates(
         available=draft.available,
         main=[_candidate(index, pick) for index, pick in enumerate(draft.picks) if not pick.is_reserve],
         reserve=[_candidate(index, pick) for index, pick in enumerate(draft.picks) if pick.is_reserve],
+        excluded=[_candidate(index, Pick(line, False)) for index, line in enumerate(draft.excluded)],
         current=CurrentOut(
             id=current.id,
             order_number=current.order_number,
@@ -65,6 +71,28 @@ async def candidates(
         if current
         else None,
     )
+
+
+@router.get("/order-draft.pdf", summary="Список сборной и проект приказа, PDF", response_class=Response)
+async def order_draft(
+    _: Federation,
+    squads: SquadsDep,
+    discipline_id: Annotated[int, Query(ge=1)],
+    group_kind: Annotated[Literal["age", "academic"], Query()],
+    group_id: Annotated[int, Query(ge=1)],
+    main_size: Annotated[int, Query(ge=1, le=100)],
+    reserve_size: Annotated[int, Query(ge=0, le=100)] = 0,
+    min_rank_id: Annotated[int | None, Query(ge=1)] = None,
+    exclude_ids: Annotated[list[UUID] | None, Query(max_length=100)] = None,
+    order_number: Annotated[str | None, Query(max_length=100)] = None,
+    order_date: Annotated[date | None, Query()] = None,
+) -> Response:
+    """Формирует по текущему черновику состава PDF со списком сборной и проектом приказа."""
+    draft = await squads.draft(discipline_id, group_kind, group_id, main_size, reserve_size, min_rank_id, exclude_ids or ())
+    rank = await squads.rank_name(min_rank_id)
+    content = await squads.order_draft(draft, order_number, order_date, rank)
+    name = quote(f"Проект приказа — {squads.title(draft.discipline, draft.group)}.pdf")
+    return Response(content, media_type="application/pdf", headers={"Content-Disposition": f"inline; filename*=UTF-8''{name}"})
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, summary="Утвердить сборную по приказу (заменяет действующую)")
@@ -81,6 +109,8 @@ async def approve(body: Annotated[SquadIn, Body()], user: Federation, ip: Client
             order_number=body.order_number,
             order_date=body.order_date,
             order_file_id=body.order_file_id,
+            min_rank_id=body.min_rank_id,
+            exclude_ids=tuple(body.exclude_ids),
         ),
         ip,
     )

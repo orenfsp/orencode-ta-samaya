@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { request, type Query } from '@/shared/api'
 import { todayOrenburg } from '../lib/dates'
 
-/** Что показывает лента календаря: событие ФСП или соревнование (docs/008_calendar.md) */
+/** Что показывает лента календаря: событие ФСП или соревнование */
 export type CalendarKind = 'event' | 'contest'
 
 /** Элемент публичной ленты: событие ФСП или действительное соревнование */
@@ -66,11 +66,17 @@ export const calendarApi = {
     request<CalendarEvent>(`/admin/calendar/events/${id}/${action}`, { method: 'POST' }),
 }
 
-export function useCalendarEvents(from: string, to: string, kind: string, q: string) {
+export function useCalendarEvents(
+  from: string,
+  to: string,
+  kind: string,
+  q: string,
+  filters: { discipline_id?: number; online?: boolean; mine?: boolean } = {},
+) {
   return useQuery({
-    queryKey: ['calendar', 'events', from, to, kind, q],
+    queryKey: ['calendar', 'events', from, to, kind, q, filters],
     queryFn: async ({ signal }) => {
-      const query = { date_from: from, date_to: to, kind: kind || undefined, q, limit: 200 }
+      const query = { ...filters, date_from: from, date_to: to, kind: kind || undefined, q, limit: 200 }
       const result = await calendarApi.list(query, signal)
       while (result.items.length < result.total) {
         const page = await calendarApi.list({ ...query, offset: result.items.length }, signal)

@@ -31,9 +31,11 @@ class Eligibility:
         return next((group for group in candidates if cls.age_fits(group, age)), None)
 
     @classmethod
-    def problems(cls, user: UserModel, contest: ContestModel) -> list[str]:
-        """Возвращает список причин, по которым пользователь не допускается к соревнованию."""
+    def problems(cls, user: UserModel, contest: ContestModel, suspended_until: date | None = None) -> list[str]:
+        """Возвращает список причин, по которым пользователь не допускается к соревнованию; отстранение — до даты включительно."""
         result: list[str] = []
+        if suspended_until is not None and suspended_until >= contest.starts_on:
+            result.append(f"отстранён решением федерации до {suspended_until.strftime('%d.%m.%Y')}")
         if Role.ATHLETE not in Roles.granted_roles(user):
             result.append("нет роли спортсмена")
         if contest.age_groups:

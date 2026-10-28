@@ -40,10 +40,30 @@ export const routes = {
   /** Старые ссылки из писем: ведёт на восстановление по коду */
   resetPassword: '/reset-password',
   cabinetSettings: (role: string) => `/cabinet/${role}/settings`,
+  /** Сроки роли: приём заявок, разряды, категории, РУСАДА, премии, отчёты */
+  cabinetDeadlines: (role: string) => `/cabinet/${role}/deadlines`,
+  /** Апелляции и нарушения: очередь федерации или свои */
+  cabinetDisputes: (role: string) => `/cabinet/${role}/disputes`,
+  /** Публичная проверка разряда или категории по QR */
+  verifyQualification: (token: string) => `/verify/qualifications/${token}`,
+  /** Справочник понятий простым языком */
+  glossary: '/glossary',
   /** Разряд спортсмена, категория судьи, заявки тренера за спортсменов */
   cabinetQualification: (role: string) =>
     `/cabinet/${role}/${role === 'judge' ? 'category' : role === 'coach' ? 'ranks' : 'rank'}`,
   cabinetJudgeAssignments: '/cabinet/judge/assignments',
+  /** Спортивный профиль: организация, дисциплины, тренеры, антидопинг */
+  cabinetAthleteProfile: '/cabinet/athlete/profile',
+  /** Подопечные тренера по подтверждённым связям */
+  cabinetCoachAthletes: '/cabinet/coach/athletes',
+  cabinetOrganizations: '/cabinet/federation/organizations',
+  /** Учебно-тренировочные группы: тренер и федерация; у спортсмена — своя подготовка */
+  cabinetTraining: (role: string) => `/cabinet/${role}/training`,
+  cabinetTrainingGroup: (role: string, id: number | string) => `/cabinet/${role}/training/${id}`,
+  /** Справочник нормативов ФССП */
+  cabinetNorms: '/cabinet/federation/norms',
+  /** Реестр: спортсмены, тренеры, судьи, численность по годам */
+  cabinetRegistry: '/cabinet/federation/registry',
   /** Очереди федерации: судейские категории и разряды */
   cabinetQualificationsReview: '/cabinet/federation/qualifications',
   cabinet: '/cabinet',

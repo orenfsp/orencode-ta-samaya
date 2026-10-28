@@ -380,6 +380,12 @@ insert into seed_contests (code, title, description, discipline, kind, level, fo
    'Алгоритмическое программирование', 'Турнир', 'Региональное', 'Очно', 'г. Оренбург', null,
    'individual', null, null, '{До 14 лет}', '{}', -30, 1, null, null,
    'federation@example.test', 'completed', 'verified', null, null, '{40,30,20}', true),
+  -- Пример кейса для рейтинга: у Соколова 40 за чемпионат, 45 за кубок ПФО и 0 за пятое место здесь.
+  -- Призёр двух соревнований — итог 85 × 1,2 = 102
+  ('alg-ogu-open', 'Открытый турнир ОГУ по алгоритмическому программированию', 'Личный онлайн-турнир для студентов и школьников.',
+   'Алгоритмическое программирование', 'Турнир', 'Региональное', 'Онлайн', null, null,
+   'individual', null, null, '{}', '{}', -75, 1, null, null,
+   'organizer@example.test', 'completed', 'verified', null, null, '{40,30,20}', false),
   -- Без верификации: места есть, баллов нет
   ('lyceum', 'Внутренний турнир лицея № 1 по алгоритмике', null,
    'Алгоритмическое программирование', 'Турнир', 'Региональное', 'Очно', 'г. Оренбург', null,
@@ -502,6 +508,12 @@ insert into seed_entries (contest, team, members, place, dsq, coach) values
   ('orsk-open', null, '{pupil2}', 8, false, null),
   ('orsk-open', null, '{14-17-stud.1}', 9, false, null),
   ('orsk-open', null, '{athlete.minor}', 10, false, null),
+
+  ('alg-ogu-open', null, '{18-stud.1}', 1, false, null),
+  ('alg-ogu-open', null, '{18-stud.2}', 2, false, null),
+  ('alg-ogu-open', null, '{athlete.third}', 3, false, null),
+  ('alg-ogu-open', null, '{18-stud.3}', 4, false, null),
+  ('alg-ogu-open', null, '{athlete}', 5, false, null),
 
   ('first-code', null, '{u14-5-9.1}', 1, false, null),
   ('first-code', null, '{u14-5-9.2}', 2, false, null),
@@ -718,6 +730,15 @@ from seed_people p join users u on u.email = p.email
 where p.ord between 1 and 14;
 
 
+-- У присвоенных — приказ за два дня до начала срока и токен QR-проверки. Подпись ставит bootstrap кодом приложения
+update qualifications q
+set order_number = extract(year from q.valid_from)::integer || '-р/' || (100 + n.num),
+    order_date = q.valid_from - 2,
+    token = substr(md5(q.id::text || random()::text), 1, 16)
+from (select id, row_number() over (order by valid_from, user_id) as num from qualifications where status = 'approved') n
+where n.id = q.id;
+
+
 -- ============================================================================
 -- 10. Согласия законных представителей
 -- ============================================================================
@@ -766,7 +787,8 @@ where pg_temp.age_on(u.birth_date, current_date) < 18;
 -- ============================================================================
 
 -- Приказ задаёт дисциплину, группу и размеры составов. Сам состав — верх рейтинга группы на сегодня
--- по правилам приложения: баллы за 365 дней, затем свежесть последней победы, среднее место, ФИО
+-- по правилам приложения: баллы за 365 дней (призёру двух соревнований × 1,2), затем свежесть последней победы,
+-- среднее место, ФИО
 create temp table seed_squads (discipline text, age_group text, main_size integer, reserve_size integer,
                                order_number text, order_days integer, order_file text, id integer);
 
@@ -793,7 +815,8 @@ from (
   from seed_squads q
   join dictionary_age_groups g on g.name = q.age_group
   cross join lateral (
-    select res.user_id, sum(res.points)::integer as points,
+    select res.user_id,
+           round(sum(res.points) * case when count(*) filter (where res.place <= 3) >= 2 then 1.2 else 1 end)::integer as points,
            max(c.ends_on) filter (where res.place = 1) as last_win,
            avg(res.place) filter (where res.place is not null) as average_place
     from contest_results res
@@ -901,3 +924,494 @@ from (values
   ('ai-olympiad', 'reference',
    '{"title": "об участии в соревновании", "recipients": "participants", "places_to": 3, "lead": null, "text": "Справка выдана для предъявления по месту требования."}')
 ) d(contest, kind, form) join seed_contests sc on sc.code = d.contest join contests c on c.id = sc.id;
+
+
+-- ============================================================================
+-- 15. Организации, спортивные профили, тренеры и антидопинг
+-- ============================================================================
+
+-- Организации вымышленные, ИНН — только формат. Лицензия — у спортивных школ, вузов и колледжей
+insert into organizations (name, short_name, organization_type_id, municipality_id, inn, license_number)
+select o.name, o.short_name, pg_temp.dict('dictionary_organization_types', o.kind),
+       pg_temp.dict('dictionary_municipalities', o.place), o.inn,
+       case when o.kind in ('Спортивная школа', 'Вуз', 'Колледж / техникум') then 'Л035-' || right(o.inn, 4) end
+from (values
+  (1, 'МАОУ «Лицей № 1» г. Оренбурга', 'Лицей № 1', 'Лицей / гимназия', 'г. Оренбург', '5610000011'),
+  (2, 'МОАУ «Гимназия № 3» г. Орска', 'Гимназия № 3', 'Лицей / гимназия', 'г. Орск', '5615000022'),
+  (3, 'ФГБОУ ВО «Оренбургский государственный университет»', 'ОГУ', 'Вуз', 'г. Оренбург', '5612000033'),
+  (4, 'Оренбургский колледж информационных технологий', 'ОКИТ', 'Колледж / техникум', 'г. Оренбург', '5609000044'),
+  (5, 'СШ «Цифровой спорт» г. Новотроицка', 'СШ «Цифровой спорт»', 'Спортивная школа', 'г. Новотроицк', '5607000055'),
+  (6, 'Клуб спортивного программирования «Байт»', 'Клуб «Байт»', 'Спортивный клуб', 'г. Бузулук', '5603000066')
+) o(ord, name, short_name, kind, place, inn)
+order by o.ord;
+
+-- Спортсмены по почте: организация по кругу, каждый седьмой без организации. Год начала занятий — не раньше 7 лет,
+-- этап подготовки — по возрасту. Основная дисциплина — алгоритмика или продуктовое; у каждого третьего вторая,
+-- у некоторых в прошлом была робототехника: так у отчёта о численности есть динамика по годам
+create temp table seed_athletes as
+select u.id, u.first_name, u.birth_date,
+       (row_number() over (order by u.email) - 1)::integer as n,
+       greatest(extract(year from u.birth_date)::integer + 7,
+                extract(year from current_date)::integer - 1 - ((row_number() over (order by u.email) - 1)::integer % 5)) as start_year
+from users u join user_roles r on r.user_id = u.id and r.role = 'athlete' and r.status = 'verified';
+
+insert into athlete_profiles (user_id, sex, organization_id, no_organization, start_year, training_stage)
+select a.id, case when right(a.first_name, 1) in ('а', 'я') and a.first_name not in ('Никита', 'Илья') then 'female' else 'male' end::sex,
+       o.id, o.id is null, a.start_year,
+       case when pg_temp.age_on(a.birth_date, current_date) < 12 then 'initial'
+            when pg_temp.age_on(a.birth_date, current_date) < 15 then 'training'
+            when pg_temp.age_on(a.birth_date, current_date) < 18 then 'improvement'
+            else 'highest' end::training_stage
+from seed_athletes a
+left join organizations o on a.n % 7 <> 6 and o.id = (select id from organizations order by id offset a.n % 6 limit 1);
+
+insert into athlete_organizations (user_id, organization_id, valid_from)
+select p.user_id, p.organization_id, make_date(p.start_year, 9, 1) from athlete_profiles p;
+
+insert into athlete_disciplines (user_id, discipline_id, valid_from, valid_to)
+select a.id, pg_temp.dict('dictionary_disciplines', d.discipline), d.valid_from, d.valid_to
+from seed_athletes a,
+lateral (values
+  ((array['Алгоритмическое программирование', 'Продуктовое программирование'])[a.n % 2 + 1],
+   make_date(a.start_year, 9, 1), null::date, true),
+  ('Программирование робототехники', make_date(a.start_year - 2, 9, 1), make_date(a.start_year, 9, 1), a.n % 8 = 3),
+  ((array['Программирование систем информационной безопасности', 'Программирование робототехники'])[a.n % 2 + 1],
+   make_date(least(a.start_year + 1, extract(year from current_date)::integer), 1, 15), null::date, a.n % 3 = 0)
+) d(discipline, valid_from, valid_to, wanted)
+where d.wanted;
+
+-- Тренеров ведёт четырёх подопечных и Морозову по алгоритмике (по одному — открыт срок апелляции), с Ахмедовым — перерыв.
+-- Зайцева ждёт ответа Соколова по продуктовому программированию
+insert into coach_links (id, coach_id, athlete_id, discipline_id, status, created_at)
+select gen_random_uuid(), pg_temp.user_id(l.coach), pg_temp.user_id(l.athlete),
+       pg_temp.dict('dictionary_disciplines', l.discipline), l.status::coach_link_status, now() - interval '30 days'
+from (values
+  ('coach@example.test', 'pupil1@example.test', 'Алгоритмическое программирование', 'active'),
+  ('coach@example.test', 'pupil2@example.test', 'Алгоритмическое программирование', 'active'),
+  ('coach@example.test', 'pupil3@example.test', 'Алгоритмическое программирование', 'suspended'),
+  ('coach@example.test', 'athlete.second@example.test', 'Алгоритмическое программирование', 'active'),
+  ('coach@example.test', '14-17-10-11.5@example.test', 'Алгоритмическое программирование', 'active'),
+  ('coach.judge@example.test', 'athlete@example.test', 'Продуктовое программирование', 'requested')
+) l(coach, athlete, discipline, status);
+
+insert into coach_link_events (id, link_id, status, actor_id, comment, created_at)
+select gen_random_uuid(), l.id, e.status::coach_link_status,
+       case when e.by_coach then l.coach_id else l.athlete_id end, e.comment, now() - make_interval(days => e.days_ago)
+from coach_links l,
+lateral (values
+  ('requested', true, case when l.status = 'requested' then 'Готовлю команду к кубку по продуктовому программированию' end, 30, true),
+  ('active', false, null, 29, l.status <> 'requested'),
+  ('suspended', true, 'Перерыв на сессию', 2, l.status = 'suspended')
+) e(status, by_coach, comment, days_ago, wanted)
+where e.wanted;
+
+-- Курс РУСАДА Соколова истекает через 15 дней: напоминание придёт сразу после запуска
+insert into antidoping_certificates (id, user_id, passed_on, valid_until, certificate_url)
+values (gen_random_uuid(), pg_temp.user_id('athlete@example.test'), current_date - 350, current_date + 15,
+        'https://rusada.ru/education/online-training/');
+
+
+-- ============================================================================
+-- 16. Календарные планы и сроки отчётов
+-- ============================================================================
+
+-- Номера вымышленные, формат как в ЕКП и КП области. Каждое четвёртое без плана: видно предупреждение готовности
+update contests c
+set calendar_plan = case when l.name = 'Региональное' then 'regional' else 'ekp' end::calendar_plan,
+    calendar_plan_number = case when l.name = 'Региональное'
+                                then 'КП-' || extract(year from c.starts_on)::integer || '/' || lpad(n.num::text, 3, '0')
+                                else 'ЕКП № ' || (2400000 + n.num * 37) end
+from (select id, row_number() over (order by id) as num from contests) n, dictionary_contest_levels l
+where n.id = c.id and l.id = c.contest_level_id and n.num % 4 <> 0;
+
+-- Приём заявок на ближайшее открытое соревнование закрывается через два дня: напоминание за три дня уже пройдено
+update contests set registration_closes_at = now() + interval '2 days 3 hours'
+where id = (select id from contests where status = 'registration_open' and starts_on > current_date + 3
+            order by id limit 1);
+
+insert into report_deadlines (title, recipient, due_on, description, done_at)
+values
+  ('Статистический отчёт 5-ФК за год', 'Министерство спорта Оренбургской области',
+   make_date(extract(year from current_date)::integer + 1, 1, 20), 'Численность занимающихся и тренеров по форме', null),
+  ('Сведения о проведённых соревнованиях за полугодие', 'Министерство спорта Оренбургской области',
+   current_date + 5, null, null),
+  ('План соревнований на следующий год', 'ФСП России', current_date + 40, null, null),
+  ('Отчёт о работе регионального отделения', 'ФСП России', current_date - 10, null, now() - interval '12 days');
+
+
+-- ============================================================================
+-- 17. Правила ЕВСК
+-- ============================================================================
+
+-- Официальные нормы ЕВСК по спортивному программированию в открытых правовых базах не нашлись.
+-- Это демо-значения с пометкой is_demo: федерация заменяет их в «Правилах ЕВСК» по документам ФСП России
+insert into evsk_rules (rank_type_id, contest_level_id, place_to, min_participants, min_age, max_age, source, is_demo)
+select pg_temp.dict('dictionary_rank_types', r.rank), pg_temp.dict('dictionary_contest_levels', r.level),
+       r.place_to, r.participants, r.min_age, r.max_age, 'Демо-значения до внесения норм ЕВСК ФСП России', true
+from (values
+  ('Всероссийское', 'Кандидат в мастера спорта', 3, 10, null::integer, null::integer),
+  ('Всероссийское', 'Первый спортивный разряд', 8, 10, null, null),
+  ('Межрегиональное', 'Первый спортивный разряд', 3, 8, null, null),
+  ('Межрегиональное', 'Второй спортивный разряд', 6, 8, null, null),
+  ('Региональное', 'Второй спортивный разряд', 3, 6, 14, null),
+  ('Региональное', 'Третий спортивный разряд', 6, 6, 14, null),
+  ('Региональное', 'Первый юношеский спортивный разряд', 3, 4, null, 17),
+  ('Региональное', 'Второй юношеский спортивный разряд', 6, 4, null, 17),
+  ('Региональное', 'Третий юношеский спортивный разряд', 10, 4, null, 17)
+) r(level, rank, place_to, participants, min_age, max_age);
+
+
+-- ============================================================================
+-- 18. Апелляции и нарушения
+-- ============================================================================
+
+-- Заявка участника на соревновании по почте; place из протокола попадает в апелляцию как «текущее место»
+create function pg_temp.entry(code text, who text) returns integer language sql as $$
+  select e.application from seed_entries e where e.contest = code and who = any(e.members) limit 1
+$$;
+
+-- Подана: Виноградова просит второе место по логу проверяющей системы. На рассмотрении: Смирнов на «Первом коде».
+-- Отклонена: Фёдорова на первенстве Орска. Удовлетворена: Белова на чемпионате — место уже исправлено в протоколе
+insert into appeals (id, contest_id, application_id, filed_by, current_place, requested_place, reason, evidence_url,
+                     status, reviewer_id, decision, decided_by, decided_at, created_at)
+select gen_random_uuid(), sc.id, pg_temp.entry(a.contest, a.login), pg_temp.user_id(a.login || '@example.test'),
+       a.current_place, a.requested_place, a.reason, a.url, a.status::appeal_status,
+       case when a.status <> 'submitted' then pg_temp.user_id('federation@example.test') end,
+       a.decision,
+       case when a.status in ('upheld', 'rejected') then pg_temp.user_id('federation@example.test') end,
+       case when a.status in ('upheld', 'rejected') then now() - make_interval(days => a.days_ago - 2) end,
+       now() - make_interval(days => a.days_ago)
+from (values
+  ('lyceum', '14-17-10-11.6', 3, 2, 'Задача D засчитана после перепроверки, но в протокол попало первоначальное значение. Лог проверяющей системы прилагаю.',
+   null, 'submitted', null, 3),
+  ('first-code', 'u14-1-4.1', 4, 3, 'У третьего места и у меня одинаковое число задач, штраф по времени у меня меньше.',
+   'https://disk.yandex.ru/d/first-code-replay', 'reviewing', null, 6),
+  ('orsk-open', 'pupil2', 8, 6, 'Прошу пересчитать штрафное время по задаче F.',
+   null, 'rejected', 'Штрафное время пересчитано по журналу посылок: место подтверждено.', 50),
+  ('alg-championship', 'athlete.minor', 11, 10, 'При переносе таблицы перепутаны строки 10 и 11.',
+   null, 'upheld', 'Ошибка переноса из таблицы подтверждена: место исправлено с 11 на 10.', 110)
+) a(contest, login, current_place, requested_place, reason, url, status, decision, days_ago)
+join seed_contests sc on sc.code = a.contest;
+
+insert into appeal_files (appeal_id, file_id)
+select a.id, pg_temp.file('evidence/appeal-lyceum-log.pdf', false, '14-17-10-11.6@example.test')
+from appeals a join seed_contests sc on sc.id = a.contest_id where sc.code = 'lyceum';
+
+-- Рапорт главного судьи ждёт решения. Гусев отстранён на 90 дней: его нет в рейтинге, заявки не принимаются.
+-- Предупреждение Захаровой на весеннем кубке
+insert into violations (id, contest_id, application_id, user_id, reported_by, description, status, sanction,
+                        suspended_until, decision, decided_by, decided_at, created_at)
+select gen_random_uuid(), sc.id, pg_temp.entry(v.contest, v.login), pg_temp.user_id(v.login || '@example.test'),
+       pg_temp.user_id(v.reporter), v.description, v.status::violation_status, v.sanction::sanction,
+       case when v.sanction = 'suspension' then current_date + 90 end,
+       v.decision,
+       case when v.status <> 'reported' then pg_temp.user_id('federation@example.test') end,
+       case when v.status <> 'reported' then now() - make_interval(days => v.days_ago - 3) end,
+       now() - make_interval(days => v.days_ago)
+from (values
+  ('ai-olympiad', '14-17-10-11.6', 'judge@example.test',
+   'Во втором туре у участника открыт сторонний чат на втором мониторе. Снимок экрана наблюдателя прилагаю.',
+   'reported', null, null, 2),
+  ('alg-pfo-cup', 'athlete.third', 'federation@example.test',
+   'Решения задач B и E совпадают с решениями другого участника до имён переменных: заключение антиплагиата.',
+   'decided', 'suspension', 'Нарушение правил честной борьбы подтверждено. Отстранение на 90 дней.', 20),
+  ('spring-product-cup', '18-stud.4', 'coach.judge@example.test',
+   'Подсказки соседней команде во время защиты после замечания судьи.',
+   'decided', 'warning', 'Предупреждение. При повторе — техническое поражение.', 140)
+) v(contest, login, reporter, description, status, sanction, decision, days_ago)
+join seed_contests sc on sc.code = v.contest;
+
+insert into violation_files (violation_id, file_id)
+select v.id, pg_temp.file('evidence/violation-ai-olympiad.pdf', false, 'judge@example.test')
+from violations v join seed_contests sc on sc.id = v.contest_id where sc.code = 'ai-olympiad';
+
+
+-- ============================================================================
+-- 19. Спортивная подготовка: программы, группы, журнал занятий, нормативы ФССП
+-- ============================================================================
+
+-- Программы подготовки организаций: дисциплина × этап. Действуют с сентября три года назад.
+-- У спортшколы — все шесть дисциплин ФССП на начальном и учебно-тренировочном этапах
+insert into organization_programs (organization_id, discipline_id, stage, valid_from)
+select o.id, pg_temp.dict('dictionary_disciplines', p.discipline), p.stage::training_stage,
+       make_date(extract(year from current_date)::integer - 3, 9, 1)
+from (
+  select 'СШ «Цифровой спорт»' as org, d.name as discipline, s.stage
+  from dictionary_disciplines d, unnest(array['initial', 'training']) s(stage)
+  where d.name in ('Алгоритмическое программирование', 'Продуктовое программирование',
+                   'Программирование систем информационной безопасности', 'Программирование систем искусственного интеллекта',
+                   'Программирование робототехники', 'Программирование беспилотных авиационных систем')
+  union all
+  select * from (values
+    ('СШ «Цифровой спорт»', 'Алгоритмическое программирование', 'improvement'),
+    ('Лицей № 1', 'Алгоритмическое программирование', 'initial'),
+    ('Лицей № 1', 'Продуктовое программирование', 'training'),
+    ('Гимназия № 3', 'Алгоритмическое программирование', 'initial'),
+    ('ОГУ', 'Алгоритмическое программирование', 'improvement'),
+    ('ОГУ', 'Алгоритмическое программирование', 'highest'),
+    ('ОГУ', 'Продуктовое программирование', 'improvement'),
+    ('ОГУ', 'Программирование систем информационной безопасности', 'improvement'),
+    ('ОКИТ', 'Продуктовое программирование', 'training'),
+    ('ОКИТ', 'Программирование робототехники', 'initial'),
+    ('ОКИТ', 'Программирование систем искусственного интеллекта', 'training'),
+    ('Клуб «Байт»', 'Алгоритмическое программирование', 'initial')
+  ) v(org, discipline, stage)
+) p
+join organizations o on o.short_name = p.org;
+
+-- Закрытая программа: у гимназии была робототехника, её свернули год назад — видно в истории
+insert into organization_programs (organization_id, discipline_id, stage, valid_from, valid_to)
+select o.id, pg_temp.dict('dictionary_disciplines', 'Программирование робототехники'), 'initial',
+       make_date(extract(year from current_date)::integer - 3, 9, 1), current_date - 365
+from organizations o where o.short_name = 'Гимназия № 3';
+
+-- Тренеры-преподаватели. Тренеров работает в спортшколе и лицее, Зайцева — в колледже и спортшколе
+insert into organization_coaches (organization_id, coach_id, position, valid_from)
+select o.id, pg_temp.user_id(c.coach), c.position, current_date - c.days
+from (values
+  ('СШ «Цифровой спорт»', 'coach@example.test', 'Старший тренер-преподаватель', 1100),
+  ('Лицей № 1', 'coach@example.test', 'Тренер-преподаватель', 800),
+  ('ОГУ', 'athlete.coach@example.test', 'Тренер-преподаватель', 900),
+  ('ОКИТ', 'coach.judge@example.test', 'Тренер-преподаватель', 1000),
+  ('СШ «Цифровой спорт»', 'coach.judge@example.test', 'Тренер-преподаватель', 700)
+) c(org, coach, position, days)
+join organizations o on o.short_name = c.org;
+
+-- Учебно-тренировочные группы по этапам. age — сколько лет назад набрана группа
+insert into training_groups (organization_id, discipline_id, stage, coach_id, name, start_year)
+select o.id, pg_temp.dict('dictionary_disciplines', g.discipline), g.stage::training_stage, pg_temp.user_id(g.coach), g.name,
+       extract(year from current_date)::integer - g.age
+from (values
+  ('СШ «Цифровой спорт»', 'НП-1 · алгоритмика', 'Алгоритмическое программирование', 'initial', 'coach@example.test', 1),
+  ('СШ «Цифровой спорт»', 'УТ-2 · алгоритмика', 'Алгоритмическое программирование', 'training', 'coach@example.test', 2),
+  ('СШ «Цифровой спорт»', 'ССМ · алгоритмика', 'Алгоритмическое программирование', 'improvement', 'coach@example.test', 3),
+  ('СШ «Цифровой спорт»', 'УТ-1 · информационная безопасность', 'Программирование систем информационной безопасности', 'training', 'coach.judge@example.test', 1),
+  ('Лицей № 1', 'НП-2 · алгоритмика', 'Алгоритмическое программирование', 'initial', 'coach@example.test', 2),
+  ('ОГУ', 'ССМ · алгоритмика ОГУ', 'Алгоритмическое программирование', 'improvement', 'athlete.coach@example.test', 2),
+  ('ОГУ', 'ВСМ · алгоритмика ОГУ', 'Алгоритмическое программирование', 'highest', 'athlete.coach@example.test', 3),
+  ('ОГУ', 'ССМ · продуктовое ОГУ', 'Продуктовое программирование', 'improvement', 'athlete.coach@example.test', 1),
+  ('ОКИТ', 'УТ-2 · продуктовое', 'Продуктовое программирование', 'training', 'coach.judge@example.test', 2),
+  ('ОКИТ', 'НП-1 · робототехника', 'Программирование робототехники', 'initial', 'coach.judge@example.test', 1)
+) g(org, name, discipline, stage, coach, age)
+join organizations o on o.short_name = g.org;
+
+-- Зачисления за два года: from/to — дни назад. Ковалёв, Петров и Макаров переведены на следующий этап
+-- по итогам аттестации, Волков отчислен. Приказы нумеруются по порядку
+create temp table seed_enrollments (login text, grp text, from_days integer, to_days integer, end_reason text);
+insert into seed_enrollments values
+  ('pupil1', 'УТ-2 · алгоритмика', 700, 120, 'transferred'),
+  ('pupil1', 'ССМ · алгоритмика', 120, null, null),
+  ('pupil2', 'УТ-2 · алгоритмика', 400, null, null),
+  ('pupil3', 'УТ-2 · алгоритмика', 500, null, null),
+  ('athlete.minor', 'УТ-2 · алгоритмика', 365, null, null),
+  ('athlete.second', 'ССМ · алгоритмика', 300, null, null),
+  ('u14-5-9.1', 'НП-1 · алгоритмика', 730, 365, 'transferred'),
+  ('u14-5-9.1', 'УТ-2 · алгоритмика', 365, null, null),
+  ('u14-5-9.2', 'НП-1 · алгоритмика', 600, null, null),
+  ('u14-1-4.1', 'НП-1 · алгоритмика', 400, null, null),
+  ('u14-1-4.2', 'НП-1 · алгоритмика', 300, null, null),
+  ('u14-1-4.3', 'НП-2 · алгоритмика', 500, null, null),
+  ('u14-1-4.4', 'НП-2 · алгоритмика', 200, null, null),
+  ('u14-5-9.3', 'НП-1 · робототехника', 400, null, null),
+  ('u14-5-9.4', 'НП-1 · робототехника', 300, null, null),
+  ('14-17-5-9.1', 'УТ-1 · информационная безопасность', 400, null, null),
+  ('14-17-5-9.2', 'УТ-2 · продуктовое', 500, null, null),
+  ('14-17-5-9.3', 'УТ-2 · продуктовое', 500, 60, 'expelled'),
+  ('14-17-10-11.1', 'ССМ · алгоритмика ОГУ', 400, null, null),
+  ('14-17-10-11.2', 'ССМ · алгоритмика ОГУ', 400, null, null),
+  ('14-17-10-11.3', 'ССМ · продуктовое ОГУ', 300, null, null),
+  ('18-stud.1', 'ССМ · алгоритмика ОГУ', 700, 250, 'transferred'),
+  ('18-stud.1', 'ВСМ · алгоритмика ОГУ', 250, null, null),
+  ('18-stud.3', 'ВСМ · алгоритмика ОГУ', 600, null, null),
+  ('athlete', 'ВСМ · алгоритмика ОГУ', 500, null, null);
+
+insert into group_enrollments (id, group_id, athlete_id, valid_from, valid_to, end_reason, order_number, note, actor_id, created_at)
+select gen_random_uuid(), g.id, pg_temp.user_id(e.login || '@example.test'), current_date - e.from_days,
+       case when e.to_days is not null then current_date - e.to_days end, e.end_reason::enrollment_end,
+       '№ ' || (100 + row_number() over (order by e.from_days desc, e.login)) || '-с',
+       case when e.end_reason = 'expelled' then 'По заявлению родителей: переезд в другой город' end,
+       g.coach_id, now() - make_interval(days => e.from_days)
+from seed_enrollments e join training_groups g on g.name = e.grp;
+
+update group_enrollments n set previous_id = p.id
+from group_enrollments p
+where p.athlete_id = n.athlete_id and p.end_reason = 'transferred' and p.valid_to = n.valid_from and p.id <> n.id;
+
+-- Спортивный профиль следует за группой, как при зачислении в приложении: этап, организация, дисциплина,
+-- год начала занятий не позже первого зачисления
+create temp table seed_current as
+select e.athlete_id, g.organization_id, g.stage, e.valid_from as since
+from group_enrollments e join training_groups g on g.id = e.group_id where e.valid_to is null;
+
+update athlete_profiles p set training_stage = c.stage, organization_id = c.organization_id, no_organization = false
+from seed_current c where c.athlete_id = p.user_id;
+
+update athlete_profiles p set start_year = least(p.start_year, extract(year from f.first)::integer)
+from (select athlete_id, min(valid_from) as first from group_enrollments group by athlete_id) f
+where f.athlete_id = p.user_id;
+
+update athlete_organizations a set organization_id = c.organization_id
+from seed_current c
+where a.user_id = c.athlete_id and a.valid_to is null and a.organization_id is distinct from c.organization_id
+  and a.valid_from >= c.since;
+
+insert into athlete_organizations (user_id, organization_id, valid_from)
+select c.athlete_id, c.organization_id, c.since
+from seed_current c join athlete_organizations a on a.user_id = c.athlete_id and a.valid_to is null
+where a.organization_id is distinct from c.organization_id;
+
+update athlete_organizations a set valid_to = c.since
+from seed_current c
+where a.user_id = c.athlete_id and a.valid_to is null and a.organization_id is distinct from c.organization_id
+  and a.valid_from < c.since;
+
+create temp table seed_group_disciplines as
+select e.athlete_id, g.discipline_id, min(e.valid_from) as since
+from group_enrollments e join training_groups g on g.id = e.group_id
+group by e.athlete_id, g.discipline_id;
+
+update athlete_disciplines d set valid_from = least(d.valid_from, x.since)
+from seed_group_disciplines x
+where d.user_id = x.athlete_id and d.discipline_id = x.discipline_id and d.valid_to is null;
+
+insert into athlete_disciplines (user_id, discipline_id, valid_from)
+select x.athlete_id, x.discipline_id, x.since from seed_group_disciplines x
+where not exists (select 1 from athlete_disciplines d
+                  where d.user_id = x.athlete_id and d.discipline_id = x.discipline_id and d.valid_to is null);
+
+-- Журнал: по восемь занятий за последние два месяца у каждой группы. Каждое третье — онлайн
+-- со ссылкой на запись. Посещаемость около 85 %
+insert into training_sessions (id, group_id, held_on, topic, format, proof_url, created_by, created_at)
+select gen_random_uuid(), g.id, current_date - 7 * k - g.id % 3,
+       (array['Разбор задач прошлого тура', 'Виртуальный контест с разбором', 'Теория: структуры данных',
+              'Командная тактика на соревновании', 'ОФП: челночный бег и пресс', 'Тренировка печати вслепую',
+              'Работа над ошибками в решениях', 'Подготовка к ближайшему соревнованию'])[(k + g.id) % 8 + 1],
+       case when k % 3 = 0 then 'online' else 'offline' end::session_format,
+       case when k % 3 = 0 then 'https://disk.yandex.ru/d/fsp-training-' || g.id || '-' || k end,
+       g.coach_id, now() - make_interval(days => 7 * k)
+from training_groups g, generate_series(1, 8) k;
+
+insert into session_attendance (session_id, athlete_id, present)
+select s.id, e.athlete_id, abs(hashtext(s.id::text || e.athlete_id::text)) % 100 < 85
+from training_sessions s
+join group_enrollments e on e.group_id = s.group_id and e.valid_from <= s.held_on
+                         and (e.valid_to is null or e.valid_to > s.held_on);
+
+-- Нормативы ФССП по спортивному программированию: приказ Минспорта России от 24.06.2025 № 445
+-- (рег. Минюст 21.07.2025 № 82991, действует с 01.01.2026), приложения 6–9. Значения перенесены из приказа.
+-- «мин, с» хранятся в секундах: 6.20 → 380. Группа A — алгоритмика и робототехника, B — продуктовое,
+-- информационная безопасность и БАС; на этапах ССМ и ВСМ нормативы общие для всех дисциплин
+create temp table seed_norms (
+  stage text, kind text, name text, unit text, direction text, male numeric, female numeric, disc text, ord integer,
+  appendix integer
+);
+insert into seed_norms values
+  ('initial', 'ofp', 'Бег на 30 м', 'seconds', 'lower', 6.3, 6.5, 'A', 1, 6),
+  ('initial', 'ofp', 'Бег 1000 м', 'min_sec', 'lower', 380, 400, 'A', 2, 6),
+  ('initial', 'ofp', 'Наклон вперёд из положения стоя на гимнастической скамье (от уровня скамьи)', 'centimeters', 'higher', 2, 3, 'A', 3, 6),
+  ('initial', 'ofp', 'Челночный бег 3×10 м', 'seconds', 'lower', 9.7, 10.1, 'A', 4, 6),
+  ('initial', 'ofp', 'Поднимание туловища из положения лёжа на спине (за 1 мин)', 'times', 'higher', 26, 23, 'A', 5, 6),
+  ('initial', 'sfp', 'Тест по печати произвольного текста на клавиатуре (за 1 мин)', 'chars', 'higher', 180, 160, 'A', 6, 6),
+  ('initial', 'ofp', 'Бег на 30 м', 'seconds', 'lower', 5.8, 6.1, 'B', 11, 6),
+  ('initial', 'ofp', 'Бег 1500 м', 'min_sec', 'lower', 510, 550, 'B', 12, 6),
+  ('initial', 'ofp', 'Наклон вперёд из положения стоя на гимнастической скамье (от уровня скамьи)', 'centimeters', 'higher', 3, 4, 'B', 13, 6),
+  ('initial', 'ofp', 'Челночный бег 3×10 м', 'seconds', 'lower', 9.2, 9.6, 'B', 14, 6),
+  ('initial', 'ofp', 'Поднимание туловища из положения лёжа на спине (за 1 мин)', 'times', 'higher', 31, 27, 'B', 15, 6),
+  ('initial', 'sfp', 'Тест по печати произвольного текста на клавиатуре (за 1 мин)', 'chars', 'higher', 190, 170, 'B', 16, 6),
+  ('training', 'ofp', 'Бег на 60 м', 'seconds', 'lower', 10.2, 10.7, 'A', 21, 7),
+  ('training', 'ofp', 'Бег на 1500 м', 'min_sec', 'lower', 475, 495, 'A', 22, 7),
+  ('training', 'ofp', 'Наклон вперёд из положения стоя на гимнастической скамье (от уровня скамьи)', 'centimeters', 'higher', 5, 6, 'A', 23, 7),
+  ('training', 'ofp', 'Челночный бег 3×10 м', 'seconds', 'lower', 8.5, 8.9, 'A', 24, 7),
+  ('training', 'ofp', 'Поднимание туловища из положения лёжа на спине (за 1 мин)', 'times', 'higher', 37, 31, 'A', 25, 7),
+  ('training', 'sfp', 'Тест по печати произвольного текста на клавиатуре (за 1 мин)', 'chars', 'higher', 220, 190, 'A', 26, 7),
+  ('training', 'ofp', 'Бег на 60 м', 'seconds', 'lower', 9.1, 10.2, 'B', 31, 7),
+  ('training', 'ofp', 'Бег на 2000 м', 'min_sec', 'lower', 567, 687, 'B', 32, 7),
+  ('training', 'ofp', 'Наклон вперёд из положения стоя на гимнастической скамье (от уровня скамьи)', 'centimeters', 'higher', 6, 8, 'B', 33, 7),
+  ('training', 'ofp', 'Челночный бег 3×10 м', 'seconds', 'lower', 7.7, 8.7, 'B', 34, 7),
+  ('training', 'ofp', 'Поднимание туловища из положения лёжа на спине (за 1 мин)', 'times', 'higher', 40, 35, 'B', 35, 7),
+  ('training', 'sfp', 'Тест по печати произвольного текста на клавиатуре (за 1 мин)', 'chars', 'higher', 240, 210, 'B', 36, 7),
+  ('improvement', 'ofp', 'Бег на 60 м', 'seconds', 'lower', 8.1, 9.5, null, 41, 8),
+  ('improvement', 'ofp', 'Бег на 2000 м', 'min_sec', 'lower', 480, 595, null, 42, 8),
+  ('improvement', 'ofp', 'Наклон вперёд из положения стоя на гимнастической скамье (от уровня скамьи)', 'centimeters', 'higher', 11, 15, null, 43, 8),
+  ('improvement', 'ofp', 'Поднимание туловища из положения лёжа на спине (за 1 мин)', 'times', 'higher', 50, 44, null, 44, 8),
+  ('improvement', 'sfp', 'Тест по печати произвольного текста на клавиатуре (за 1 мин)', 'chars', 'higher', 260, 230, null, 45, 8),
+  ('highest', 'ofp', 'Бег на 100 м', 'seconds', 'lower', 13.2, 15.8, null, 51, 9),
+  ('highest', 'ofp', 'Бег на 2000 м', 'min_sec', 'lower', null, 585, null, 52, 9),
+  ('highest', 'ofp', 'Бег на 3000 м', 'min_sec', 'lower', 740, null, null, 53, 9),
+  ('highest', 'ofp', 'Наклон вперёд из положения стоя на гимнастической скамье (от уровня скамьи)', 'centimeters', 'higher', 13, 16, null, 54, 9),
+  ('highest', 'ofp', 'Поднимание туловища из положения лёжа на спине (за 1 мин)', 'times', 'higher', 51, 45, null, 55, 9),
+  ('highest', 'sfp', 'Тест по печати произвольного текста на клавиатуре (за 1 мин)', 'chars', 'higher', 300, 270, null, 56, 9);
+
+insert into standard_norms (stage, kind, name, unit, direction, threshold_male, threshold_female, source, is_demo, sort_order)
+select n.stage::training_stage, n.kind::norm_kind, n.name, n.unit::norm_unit, n.direction::norm_direction, n.male, n.female,
+       'Приказ Минспорта России от 24.06.2025 № 445, приложение № ' || n.appendix, false, n.ord
+from seed_norms n order by n.ord;
+
+insert into standard_norm_disciplines (norm_id, discipline_id)
+select s.id, pg_temp.dict('dictionary_disciplines', d.name)
+from seed_norms n
+join standard_norms s on s.sort_order = n.ord
+join (values
+  ('A', 'Алгоритмическое программирование'), ('A', 'Программирование робототехники'),
+  ('B', 'Продуктовое программирование'), ('B', 'Программирование систем информационной безопасности'),
+  ('B', 'Программирование беспилотных авиационных систем')
+) d(disc, name) on d.disc = n.disc;
+
+-- Результат сдачи относительно порога: ok — с запасом лучше порога, иначе с запасом хуже
+create function pg_temp.norm_value(threshold numeric, direction text, unit text, ok boolean) returns numeric
+language sql as $$
+  select case
+    when direction = 'higher' and ok then ceil(threshold * 1.08)
+    when direction = 'higher' then greatest(floor(threshold * 0.85), 0)
+    when ok and unit = 'seconds' then round(threshold * 0.95, 1)
+    when ok then round(threshold * 0.95)
+    when unit = 'seconds' then round(threshold * 1.1, 1)
+    else round(threshold * 1.1) end
+$$;
+
+-- Нормативы этапа сдают при каждом зачислении, за неделю до приказа — все выполнены.
+-- Нормативы следующего этапа в этом сезоне: Фёдорова, Козлова и Павлов выполнили всё и готовы к переводу,
+-- у Ахмедова, Беловой, Смирнова и Медведевой часть нормативов не выполнена
+create temp table seed_norm_plan (login text, days integer, all_ok boolean);
+insert into seed_norm_plan values
+  ('pupil2', 40, true), ('u14-5-9.2', 35, true), ('14-17-10-11.1', 50, true),
+  ('pupil3', 45, false), ('athlete.minor', 30, false), ('u14-1-4.1', 25, false), ('14-17-5-9.2', 60, false);
+
+insert into norm_results (id, athlete_id, norm_id, value, threshold, passed, passed_on, recorded_by, created_at)
+select gen_random_uuid(), x.athlete_id, n.id, v.value, l.threshold,
+       case when n.direction = 'higher' then v.value >= l.threshold else v.value <= l.threshold end,
+       x.on_date, x.coach_id, x.on_date + time '12:00'
+from (
+  select e.athlete_id, g.stage, g.discipline_id, e.valid_from - 7 as on_date, g.coach_id, true as all_ok
+  from group_enrollments e join training_groups g on g.id = e.group_id
+  union all
+  select c.athlete_id,
+         (case g.stage when 'initial' then 'training' when 'training' then 'improvement' else 'highest' end)::training_stage,
+         g.discipline_id, current_date - p.days, g.coach_id, p.all_ok
+  from seed_norm_plan p
+  join group_enrollments c on c.athlete_id = pg_temp.user_id(p.login || '@example.test') and c.valid_to is null
+  join training_groups g on g.id = c.group_id
+) x
+join standard_norms n on n.stage = x.stage
+  and (not exists (select 1 from standard_norm_disciplines d where d.norm_id = n.id)
+       or exists (select 1 from standard_norm_disciplines d where d.norm_id = n.id and d.discipline_id = x.discipline_id))
+join athlete_profiles ap on ap.user_id = x.athlete_id
+cross join lateral (select case when ap.sex = 'female' then n.threshold_female else n.threshold_male end as threshold) l
+cross join lateral (select pg_temp.norm_value(l.threshold, n.direction::text, n.unit::text,
+                                              x.all_ok or n.sort_order % 3 <> 0) as value) v
+where l.threshold is not null;
+
+-- Аттестации: переводы по закрытым зачислениям и одна — «оставлен на этапе»
+insert into attestations (id, athlete_id, group_id, target_group_id, stage_from, stage_to, result, decided_on,
+                          order_number, comment, actor_id, created_at)
+select gen_random_uuid(), p.athlete_id, p.group_id, n.group_id, gp.stage, gn.stage, 'transferred', p.valid_to,
+       n.order_number, 'Нормативы следующего этапа выполнены', gp.coach_id, p.valid_to + time '15:00'
+from group_enrollments p
+join group_enrollments n on n.previous_id = p.id
+join training_groups gp on gp.id = p.group_id
+join training_groups gn on gn.id = n.group_id;
+
+insert into attestations (id, athlete_id, group_id, stage_from, result, decided_on, comment, actor_id, created_at)
+select gen_random_uuid(), pg_temp.user_id('pupil3@example.test'), g.id, g.stage, 'retained', current_date - 120,
+       'Не выполнены наклон и челночный бег — пересдача в следующем сезоне', g.coach_id, now() - interval '120 days'
+from training_groups g where g.name = 'УТ-2 · алгоритмика';

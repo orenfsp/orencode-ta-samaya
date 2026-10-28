@@ -35,6 +35,7 @@ const kindTitles: Record<DocumentKind, string> = {
   gramota: 'Грамота',
   thanks: 'Благодарность тренеру',
   judge_thanks: 'Благодарность судье',
+  judge_panel: 'Справка о составе коллегии',
   reference: 'Справка об участии',
 }
 

@@ -35,6 +35,7 @@ class CurrentUser:
     email: str
     roles: frozenset[Role]
     sid: str
+    granted: frozenset[Role] = frozenset()
 
 
 SID_COOKIE = "sid"
@@ -46,6 +47,12 @@ csrf_header = APIKeyHeader(
     name=CSRF_HEADER,
     auto_error=False,
     description="Значение куки csrf_token. Нужно для всех не-GET запросов с сессией.",
+)
+ACTIVE_ROLE_HEADER = "X-Active-Role"
+active_role_header = APIKeyHeader(
+    name=ACTIVE_ROLE_HEADER,
+    auto_error=False,
+    description="Активная роль кабинета: athlete, coach, judge, organizer, federation. Права запроса сужаются до неё.",
 )
 
 
@@ -117,15 +124,21 @@ async def optional_current_user(
     response: Response,
     sessions: SessionsDep,
     csrf: Annotated[str | None, Security(csrf_header)],
+    active: Annotated[str | None, Security(active_role_header)],
 ) -> CurrentUser | None:
-    """Достаёт пользователя из сессии по куке, проверяет CSRF и обновляет куки; None, если сессии нет."""
+    """Достаёт пользователя из сессии, проверяет CSRF и сужает права до активной роли кабинета; None, если сессии нет."""
     session = await sessions.resolve(request.cookies.get(SID_COOKIE))
     if session is None:
         return None
     if request.method not in SAFE_METHODS and not (csrf and secrets.compare_digest(csrf, session.csrf)):
         raise CsrfFailed()
     set_auth_cookies(response, session)
-    return CurrentUser(id=session.user_id, email=session.email, roles=session.roles, sid=session.sid)
+    roles = session.roles
+    if active:
+        if active not in {item.value for item in Role} or Role(active) not in session.roles:
+            raise Forbidden("Эта роль не подтверждена у аккаунта")
+        roles = frozenset({Role(active)})
+    return CurrentUser(id=session.user_id, email=session.email, roles=roles, sid=session.sid, granted=session.roles)
 
 
 async def current_user(user: Annotated[CurrentUser | None, Depends(optional_current_user)]) -> CurrentUser:

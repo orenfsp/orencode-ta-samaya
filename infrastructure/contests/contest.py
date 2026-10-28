@@ -18,7 +18,7 @@ from infrastructure.dictionaries.dictionary_contest_level import DictionaryConte
 from infrastructure.dictionaries.dictionary_contest_type import DictionaryContestTypeModel
 from infrastructure.dictionaries.dictionary_discipline import DictionaryDisciplineModel
 from infrastructure.dictionaries.dictionary_municipality import DictionaryMunicipalityModel
-from infrastructure.enums import ContestStatus, ParticipationType, VerificationStatus
+from infrastructure.enums import CalendarPlan, ContestStatus, ParticipationType, VerificationStatus
 from infrastructure.services.file import FileModel
 from infrastructure.account.user import UserModel
 
@@ -54,6 +54,8 @@ class ContestModel(Base):
     registration_closes_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     prize_fund_text: Mapped[str | None] = mapped_column(String(500))
     prize_fund_amount: Mapped[int | None] = mapped_column()
+    calendar_plan: Mapped[CalendarPlan] = mapped_column(Enum(CalendarPlan, name="calendar_plan", values_callable=_values), default=CalendarPlan.NONE, server_default=CalendarPlan.NONE.value)
+    calendar_plan_number: Mapped[str | None] = mapped_column(String(50))
     regulations_file_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"))
     organizer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
     status: Mapped[ContestStatus] = mapped_column(Enum(ContestStatus, name="contest_status", values_callable=_values), default=ContestStatus.DRAFT, index=True)

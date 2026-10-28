@@ -40,6 +40,15 @@ class AlreadyAssigned(AppError):
 class Candidate:
     user: UserModel
     category: QualificationModel | None
+    conflicts: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class Panel:
+    contest: ContestModel
+    items: Sequence[JudgeAssignmentModel]
+    categories: dict[UUID, QualificationModel]
+    conflicts: dict[UUID, list[str]]
 
 
 class Judges:
@@ -61,14 +70,15 @@ class Judges:
         self._contests, self._users, self._dictionary = contests, users, dictionary
         self._audit, self._notifications = audit, notifications
 
-    async def of_contest(self, contest_id: int) -> tuple[ContestModel, Sequence[JudgeAssignmentModel], dict[UUID, QualificationModel]]:
-        """Возвращает соревнование, его коллегию судей и их действующие судейские категории."""
+    async def of_contest(self, contest_id: int) -> Panel:
+        """Возвращает соревнование, коллегию судей с действующими категориями и конфликтами интересов."""
         contest = await self._contest(contest_id)
         items = await self._assignments.of_contest(contest_id)
         categories = await self._qualifications.valid_on(
             [item.judge_id for item in items], QualificationKind.JUDGE_CATEGORY, contest.starts_on
         )
-        return contest, items, categories
+        conflicts = await self._assignments.conflicts(contest_id, [item.judge_id for item in items])
+        return Panel(contest, items, categories, conflicts)
 
     async def of_judge(self, judge_id: UUID) -> Sequence[JudgeAssignmentModel]:
         """Возвращает назначения судьи на соревнования."""
@@ -82,7 +92,8 @@ class Judges:
             [user.id for user in users], QualificationKind.JUDGE_CATEGORY, contest.starts_on
         )
         taken = {item.judge_id for item in await self._assignments.of_contest(contest_id)}
-        found = [Candidate(user, categories.get(user.id)) for user in users if user.id not in taken]
+        conflicts = await self._assignments.conflicts(contest_id, [user.id for user in users])
+        found = [Candidate(user, categories.get(user.id), conflicts.get(user.id, [])) for user in users if user.id not in taken]
         return sorted(found, key=lambda item: item.category is None)
 
     async def assign(
@@ -106,7 +117,8 @@ class Judges:
         )
         await self._audit.write(
             AuditAction.JUDGE_ASSIGN, actor_id, "judge_assignment", item.id,
-            {"contest_id": contest_id, "judge_id": str(judge_id), "position": position.name}, ip,
+            {"contest_id": contest_id, "judge_id": str(judge_id), "position": position.name,
+             "conflicts": (await self._assignments.conflicts(contest_id, [judge_id])).get(judge_id, [])}, ip,
         )
         await self._notifications.judge_assignment(judge_id, actor_id, T.JUDGE_ASSIGNED, contest.title, position.name)
         await self._uow.commit()

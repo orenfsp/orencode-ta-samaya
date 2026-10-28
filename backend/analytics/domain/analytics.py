@@ -328,7 +328,7 @@ class Analytics:
         return Result(
             "summary",
             {"tiles": tiles},
-            [Table("Сводка", ["Показатель", "Период", "Прошлый период", "Разница", "Разница, %"], rows)],
+            [Table("Сводка", ["Показатель", "Период", "Прошлый период", "Разница", "Разница, %"], rows, {4})],
         )
 
     async def _participants(self, query: Query) -> Result:

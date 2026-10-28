@@ -51,6 +51,14 @@ export interface CompetitionFormModalProps {
  * Форма соревнования в боковой панели. Черновик берётся из записи при монтировании,
  * поэтому страница задаёт key на каждое открытие — без синхронизации эффектами.
  */
+/** Всероссийские и межрегиональные соревнования входят в ЕКП Минспорта, региональные — в план области */
+function planHint(level: string | undefined) {
+  const name = (level ?? '').toLowerCase()
+  if (name.includes('всерос') || name.includes('межрег')) return 'Для этого уровня — ЕКП Минспорта России'
+  if (name.includes('регион')) return 'Для этого уровня — календарный план области'
+  return undefined
+}
+
 export function CompetitionFormModal({
   open,
   scope,
@@ -326,6 +334,31 @@ export function CompetitionFormModal({
             </p>
           )}
         </fieldset>
+
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+          <Field
+            label="Календарный план"
+            hint={planHint(levels.options.find((item) => item.value === draft.contest_level_id)?.label)}
+          >
+            <Select
+              value={draft.calendar_plan}
+              onChange={(event) => set('calendar_plan', event.target.value as Draft['calendar_plan'])}
+              options={[
+                { value: 'none', label: 'Не включено' },
+                { value: 'ekp', label: 'ЕКП Минспорта России' },
+                { value: 'regional', label: 'Календарный план Оренбургской области' },
+              ]}
+            />
+          </Field>
+          <Field label="Номер в плане" error={fieldError('calendar_plan_number')}>
+            <Input
+              value={draft.calendar_plan_number}
+              maxLength={50}
+              disabled={draft.calendar_plan === 'none'}
+              onChange={(event) => set('calendar_plan_number', event.target.value)}
+            />
+          </Field>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
           <Field

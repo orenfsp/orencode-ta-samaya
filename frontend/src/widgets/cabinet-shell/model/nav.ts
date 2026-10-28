@@ -2,10 +2,13 @@ import type { ComponentType } from 'react'
 import type { Role } from '@/entities/session'
 import { routes } from '@/shared/config'
 import {
+  IconAlert,
   IconArrowUp,
   IconBook,
   IconCalendar,
   IconChart,
+  IconCheckCircle,
+  IconInbox,
   IconFile,
   IconGrid,
   IconHistory,
@@ -14,6 +17,8 @@ import {
   IconShieldCheck,
   IconText,
   IconTrophy,
+  IconUser,
+  IconMapPin,
   type IconProps,
 } from '@/shared/ui'
 
@@ -33,6 +38,15 @@ export interface CabinetNavItem {
 export function cabinetNav(role: Role): CabinetNavItem[] {
   return [
     ...sections(role),
+    {
+      label: 'Сроки',
+      to: routes.cabinetDeadlines(role),
+      icon: IconCalendar,
+      description:
+        role === 'federation'
+          ? 'Приём заявок, истекающие разряды и категории, премии Губернатора, отчёты'
+          : 'Приём заявок и сроки разряда, категории, антидопингового курса',
+    },
     {
       label: 'Настройки',
       to: routes.cabinetSettings(role),
@@ -85,8 +99,17 @@ function sections(role: Role): CabinetNavItem[] {
       role === 'judge'
         ? 'Судейская категория, срок действия и заявка на повышение'
         : role === 'coach'
-          ? 'Заявки на разряды за спортсменов из ваших заявок'
+          ? 'Заявки на разряды за ваших спортсменов'
           : 'Разряд, срок действия и заявка на следующий',
+  }
+  const disputes: CabinetNavItem = {
+    label: role === 'federation' ? 'Апелляции и нарушения' : 'Мои апелляции',
+    to: routes.cabinetDisputes(role),
+    icon: IconAlert,
+    description:
+      role === 'federation'
+        ? 'Апелляции на места и рапорты судей: рассмотрение и решение'
+        : 'Апелляции по своим заявкам и решения федерации по нарушениям',
   }
   switch (role) {
     case 'federation':
@@ -109,6 +132,31 @@ function sections(role: Role): CabinetNavItem[] {
           to: routes.cabinetQualificationsReview,
           icon: IconArrowUp,
           description: 'Очереди заявок на судейские категории и спортивные разряды',
+        },
+        disputes,
+        {
+          label: 'Реестр',
+          to: routes.cabinetRegistry,
+          icon: IconUser,
+          description: 'Спортсмены, тренеры и судьи с фильтрами, численность занимающихся по годам',
+        },
+        {
+          label: 'Организации',
+          to: routes.cabinetOrganizations,
+          icon: IconMapPin,
+          description: 'Школы, вузы, спортивные школы и клубы: лицензия, программы подготовки, тренеры',
+        },
+        {
+          label: 'Группы',
+          to: routes.cabinetTraining(role),
+          icon: IconInbox,
+          description: 'Учебно-тренировочные группы по этапам, журнал занятий, аттестация',
+        },
+        {
+          label: 'Нормативы',
+          to: routes.cabinetNorms,
+          icon: IconCheckCircle,
+          description: 'Нормативы ОФП и СФП по федеральному стандарту: этап, дисциплина, пол',
         },
         competitions,
         {
@@ -140,6 +188,18 @@ function sections(role: Role): CabinetNavItem[] {
     case 'athlete':
       return [
         overview,
+        {
+          label: 'Профиль спортсмена',
+          to: routes.cabinetAthleteProfile,
+          icon: IconUser,
+          description: 'Организация, дисциплины, тренеры и антидопинговый курс',
+        },
+        {
+          label: 'Подготовка',
+          to: routes.cabinetTraining(role),
+          icon: IconBook,
+          description: 'Группа и этап, посещаемость, нормативы и аттестации',
+        },
         competitions,
         {
           label: 'Мой рейтинг',
@@ -149,9 +209,28 @@ function sections(role: Role): CabinetNavItem[] {
         },
         qualification,
         documents,
+        disputes,
       ]
     case 'coach':
-      return [overview, competitions, qualification, documents]
+      return [
+        overview,
+        {
+          label: 'Мои спортсмены',
+          to: routes.cabinetCoachAthletes,
+          icon: IconUser,
+          description: 'Привязка по дисциплине с подтверждением, статусы и история',
+        },
+        {
+          label: 'Группы',
+          to: routes.cabinetTraining(role),
+          icon: IconBook,
+          description: 'Состав групп, журнал занятий, приём нормативов и аттестация',
+        },
+        competitions,
+        qualification,
+        documents,
+        disputes,
+      ]
     case 'judge':
       return [
         overview,

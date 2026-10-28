@@ -10,6 +10,7 @@ from core.config import settings
 from core.database import DbSession, UnitOfWork
 from documents.domain.documents import Documents
 from documents.repositories.pg_documents import DocumentRepository
+from qualifications.repositories.pg_qualifications import QualificationRepository
 from results.repositories.pg_results import ResultRepository
 
 
@@ -21,6 +22,7 @@ def get_documents(db: DbSession, audit: Annotated[Audit, Depends(get_audit)]) ->
         contests=ContestRepository(db),
         applications=ApplicationRepository(db),
         results=ResultRepository(db),
+        qualifications=QualificationRepository(db),
         audit=audit,
         settings=settings,
     )

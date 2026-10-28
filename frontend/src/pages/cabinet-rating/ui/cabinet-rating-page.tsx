@@ -3,6 +3,7 @@ import { useMe } from '@/entities/session'
 import { routes } from '@/shared/config'
 import { Button, PageHeader, Skeleton } from '@/shared/ui'
 import { AthleteRatings } from '@/widgets/athlete-ratings'
+import { RatingReasons } from './rating-reasons'
 
 /** Своё место во всех рейтингах: публичный рейтинг тот же, здесь — только про себя */
 export function CabinetRatingPage() {
@@ -24,6 +25,7 @@ export function CabinetRatingPage() {
           </Button>
         }
       />
+      {me && <RatingReasons />}
       {me ? (
         <AthleteRatings
           userId={me.id}

@@ -2,10 +2,13 @@ import { env } from '@/shared/config'
 
 /*
  * Сессия — httpOnly-cookie `sid` от бэка, токенов в JS нет.
- * Для небезопасных методов бэк ждёт значение cookie csrf_token в заголовке X-CSRF-Token (docs/api_map.md).
+ * Для небезопасных методов бэк ждёт значение cookie csrf_token в заголовке X-CSRF-Token (API_DOCUMENTATION.md).
  */
 const CSRF_COOKIE = 'csrf_token'
 const CSRF_HEADER = 'X-CSRF-Token'
+/** Кабинет роли в адресе: права запроса сервер сужает до этой роли */
+const ACTIVE_ROLE_HEADER = 'X-Active-Role'
+const ACTIVE_ROLE = /^\/cabinet\/(athlete|coach|judge|organizer|federation)(?:\/|$)/
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 const STATUS_MESSAGES: Record<number, string> = {
@@ -19,7 +22,7 @@ const STATUS_MESSAGES: Record<number, string> = {
   429: 'Слишком много попыток, подождите немного',
 }
 
-/** Формат ошибки бэка: {"error": {"code", "message", "fields"}} — docs/api_map.md */
+/** Формат ошибки бэка: {"error": {"code", "message", "fields"}} — API_DOCUMENTATION.md */
 interface ErrorBody {
   error?: { code?: string; message?: string; fields?: Record<string, string[]> | null }
 }
@@ -88,6 +91,8 @@ function readCookie(name: string) {
 
 export async function request<T>(path: string, { method = 'GET', query, body, signal }: RequestOptions = {}) {
   const headers = new Headers({ Accept: 'application/json' })
+  const cabinet = ACTIVE_ROLE.exec(window.location.pathname)
+  if (cabinet) headers.set(ACTIVE_ROLE_HEADER, cabinet[1]!)
   const isForm = body instanceof FormData
   if (body !== undefined && !isForm) headers.set('Content-Type', 'application/json')
   if (!SAFE_METHODS.has(method)) {

@@ -2,13 +2,19 @@ from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from infrastructure.account.user import UserModel
 from infrastructure.contests.contest import ContestModel
+from infrastructure.enums import ApplicationStatus, CoachLinkStatus
+from infrastructure.participation.contest_application import ContestApplicationModel
+from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
 from infrastructure.qualifications.judge_assignment import JudgeAssignmentModel
+from infrastructure.sport.coach_link import CoachLinkModel
 
 J = JudgeAssignmentModel
+LIVE = (ApplicationStatus.FORMING, ApplicationStatus.SUBMITTED, ApplicationStatus.APPROVED)
 
 
 class JudgeAssignmentRepository:
@@ -17,6 +23,29 @@ class JudgeAssignmentRepository:
     def __init__(self, db: AsyncSession) -> None:
         """Сохраняет сессию БД."""
         self._db = db
+
+    async def conflicts(self, contest_id: int, judge_ids: Sequence[UUID]) -> dict[UUID, list[str]]:
+        """Возвращает конфликты интересов судей: судья → ФИО его подопечных среди участников соревнования."""
+        if not judge_ids:
+            return {}
+        A, M = ContestApplicationModel, ContestApplicationMemberModel
+        rows = await self._db.execute(
+            select(A.created_by, CoachLinkModel.coach_id, UserModel.last_name, UserModel.first_name)
+            .select_from(M)
+            .join(A, A.id == M.application_id)
+            .join(UserModel, UserModel.id == M.user_id)
+            .outerjoin(CoachLinkModel, and_(
+                CoachLinkModel.athlete_id == M.user_id, CoachLinkModel.status == CoachLinkStatus.ACTIVE,
+                CoachLinkModel.coach_id.in_(judge_ids),
+            ))
+            .where(A.contest_id == contest_id, M.is_active, A.status.in_(LIVE))
+        )
+        found: dict[UUID, set[str]] = {}
+        for creator, coach, last_name, first_name in rows.tuples():
+            name = f"{last_name} {first_name}"
+            for judge_id in {creator, coach} & set(judge_ids):
+                found.setdefault(judge_id, set()).add(name)
+        return {judge_id: sorted(names) for judge_id, names in found.items()}
 
     async def get(self, assignment_id: UUID) -> JudgeAssignmentModel | None:
         """Возвращает назначение по id."""

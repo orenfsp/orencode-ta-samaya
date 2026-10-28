@@ -9,6 +9,7 @@ import { cn, plural, useSelection } from '@/shared/lib'
 import {
   Button,
   Checkbox,
+  ConfirmModal,
   EmptyState,
   ErrorState,
   Field,
@@ -55,6 +56,7 @@ export function ModerationModal({
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(STEP)
   const [bulkReject, setBulkReject] = useState(false)
+  const [bulkApprove, setBulkApprove] = useState<number[] | null>(null)
   const selection = useSelection<number>()
   const moderation = useModeration(scope)
   const contests = useContestsWithApplications(scope)
@@ -94,7 +96,7 @@ export function ModerationModal({
             </Button>
             <Button
               loading={moderation.approve.isPending}
-              onClick={() => moderation.approve.mutate(selection.selected, { onSuccess: selection.clear })}
+              onClick={() => setBulkApprove([...selection.selected])}
             >
               Одобрить
             </Button>
@@ -217,6 +219,19 @@ export function ModerationModal({
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={bulkApprove !== null}
+        onClose={() => setBulkApprove(null)}
+        onConfirm={async () => {
+          if (!bulkApprove?.length) return
+          await moderation.approve.mutateAsync(bulkApprove)
+          selection.clear()
+        }}
+        title={`Одобрить ${bulkApprove?.length ?? 0} ${plural(bulkApprove?.length ?? 0, ['заявку', 'заявки', 'заявок'])}?`}
+        description={`«${contest.title}». Участники выбранных заявок будут допущены к соревнованию и получат уведомления.`}
+        confirmLabel="Одобрить выбранные"
+      />
 
       <ReasonModal
         open={bulkReject}

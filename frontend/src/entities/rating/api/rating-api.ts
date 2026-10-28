@@ -1,5 +1,13 @@
 import { request } from '@/shared/api'
-import type { RatingBoard, RatingFilters, RatingStanding, RatingTableQuery } from '../model/types'
+import type {
+  RatingBoard,
+  RatingFilters,
+  RatingRules,
+  RatingRulesInput,
+  RatingStanding,
+  RatingStatus,
+  RatingTableQuery,
+} from '../model/types'
 
 export const ratingApi = {
   boards: (filters: RatingFilters, limit: number, signal?: AbortSignal) =>
@@ -8,4 +16,8 @@ export const ratingApi = {
     request<RatingBoard>('/ratings/table', { query: { ...query, limit, offset }, signal }),
   athlete: (userId: string, signal?: AbortSignal) =>
     request<{ items: RatingStanding[] }>(`/ratings/athletes/${userId}`, { signal }),
+  rules: (signal?: AbortSignal) => request<RatingRules>('/ratings/settings', { signal }),
+  saveRules: (body: RatingRulesInput) =>
+    request<RatingRules>('/admin/ratings/settings', { method: 'PUT', body }),
+  me: (signal?: AbortSignal) => request<RatingStatus>('/ratings/me', { signal }),
 }

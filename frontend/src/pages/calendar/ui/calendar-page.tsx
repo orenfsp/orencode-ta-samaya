@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { useMe } from '@/entities/session'
+import { useDictionaryOptions } from '@/entities/dictionary'
 import { useSearchParams } from 'react-router'
 import {
   calendarDays,
@@ -24,6 +27,7 @@ import {
   PageHeader,
   Select,
   Skeleton,
+  Tabs,
 } from '@/shared/ui'
 import { Agenda } from '@/widgets/calendar-events'
 
@@ -41,6 +45,18 @@ function nearestFirst<T extends DatedEvent>(events: T[], today: string) {
 
 export function CalendarPage() {
   const [params, setParams] = useSearchParams()
+  const { data: me } = useMe()
+  const disciplines = useDictionaryOptions('disciplines')
+  const [preference, setPreference] = useState(() => {
+    try {
+      return localStorage.getItem('fsp.calendar.mine') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const mine = Boolean(me && (params.has('mine') ? params.get('mine') === 'true' : preference))
+  const discipline = params.get('discipline_id') ?? ''
+  const online = params.get('online') ?? ''
   const today = todayOrenburg()
   const rawMonth = params.get('month') ?? ''
   const month = /^(19\d{2}|20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(rawMonth) ? rawMonth : today.slice(0, 7)
@@ -49,7 +65,11 @@ export function CalendarPage() {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(rawDay) && rawDay >= from && rawDay <= to ? rawDay : ''
   const kind = ['event', 'contest'].includes(params.get('kind') ?? '') ? params.get('kind')! : ''
   const q = (params.get('q') ?? '').slice(0, 300)
-  const events = useCalendarEvents(from, to, kind, q)
+  const events = useCalendarEvents(from, to, kind, q, {
+    mine: mine || undefined,
+    discipline_id: /^\d+$/.test(discipline) && Number(discipline) > 0 ? Number(discipline) : undefined,
+    online: online === 'true' ? true : online === 'false' ? false : undefined,
+  })
   const update = (values: Record<string, string>, replace = false) => {
     setParams(
       (current) => {
@@ -82,6 +102,26 @@ export function CalendarPage() {
 
       <div className="grid items-start gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <aside className="flex flex-col gap-4 lg:sticky lg:top-28">
+          {me && (
+            <Tabs
+              aria-label="Соревнования календаря"
+              fullWidth
+              value={mine ? 'mine' : 'all'}
+              items={[
+                { value: 'all', label: 'Все' },
+                { value: 'mine', label: 'Только мои' },
+              ]}
+              onChange={(value) => {
+                setPreference(value === 'mine')
+                try {
+                  localStorage.setItem('fsp.calendar.mine', String(value === 'mine'))
+                } catch {
+                  /* Хранилище может быть недоступно. */
+                }
+                update({ mine: String(value === 'mine'), day: '' })
+              }}
+            />
+          )}
           <section className="card p-4" aria-label={monthLabel(month)} aria-busy={events.isFetching}>
             <div className="flex items-center gap-1">
               <IconButton
@@ -136,16 +176,20 @@ export function CalendarPage() {
                     )}
                   >
                     {Number(date.slice(-2))}
-                    <span className="flex h-1 gap-0.5" aria-hidden="true">
-                      {dayItems.slice(0, 3).map((event) => (
-                        <span
-                          key={event.id}
-                          className={cn(
-                            'size-1 rounded-full',
-                            day === date ? 'bg-white' : event.kind === 'contest' ? 'bg-primary' : 'bg-live',
-                          )}
-                        />
-                      ))}
+                    <span className="flex h-2 gap-0.5" aria-hidden="true">
+                      {count > 1 ? (
+                        <span className="text-[9px] leading-none">{count}</span>
+                      ) : (
+                        dayItems.map((event) => (
+                          <span
+                            key={event.id}
+                            className={cn(
+                              'size-1 rounded-full',
+                              day === date ? 'bg-white' : event.kind === 'contest' ? 'bg-primary' : 'bg-live',
+                            )}
+                          />
+                        ))
+                      )}
                     </span>
                   </button>
                 )
@@ -192,6 +236,27 @@ export function CalendarPage() {
                 ]}
               />
             </Field>
+            <Field label="Дисциплина">
+              <Select
+                value={discipline}
+                options={[
+                  { value: '', label: 'Все дисциплины' },
+                  ...(disciplines.data ?? []).map((item) => ({ value: String(item.id), label: item.name })),
+                ]}
+                onChange={(event) => update({ discipline_id: event.target.value, day: '' })}
+              />
+            </Field>
+            <Field label="Формат">
+              <Select
+                value={online}
+                options={[
+                  { value: '', label: 'Все форматы' },
+                  { value: 'true', label: 'Онлайн' },
+                  { value: 'false', label: 'Очно' },
+                ]}
+                onChange={(event) => update({ online: event.target.value, day: '' })}
+              />
+            </Field>
           </div>
         </aside>
 
@@ -222,7 +287,7 @@ export function CalendarPage() {
           ) : events.isError ? (
             <ErrorState error={events.error} onRetry={() => events.refetch()} />
           ) : visible.length ? (
-            <Agenda items={visible} from={day || from} highlightId={nearestId} />
+            <Agenda items={visible} from={day || from} highlightId={nearestId} selectedDay={day} />
           ) : (
             <div className="card">
               <EmptyState

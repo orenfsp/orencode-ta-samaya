@@ -31,7 +31,7 @@ def get_qualifications(
 ) -> Qualifications:
     """Собирает сервис разрядов и категорий с нужными зависимостями."""
     return Qualifications(UnitOfWork(db), QualificationRepository(db), UserRepository(db), DictionaryRepository(db),
-                          files, audit, notifications)
+                          files, audit, notifications, settings.document_signing_secret.get_secret_value())
 
 
 def get_judges(db: DbSession, audit: Annotated[Audit, Depends(get_audit)], notifications: NotificationsDep) -> Judges:

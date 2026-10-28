@@ -67,7 +67,7 @@ export function DocumentsModal({
     set('judge_ids', picked.includes(id) ? picked.filter((value) => value !== id) : [...picked, id])
 
   const existing = groupOf(kind)?.items.length ?? 0
-  const reference = kind === 'reference'
+  const reference = kind === 'reference' || kind === 'judge_panel'
   const winners = kind === 'diploma' || (kind === 'gramota' && form.recipients === 'winners')
 
   const set = <K extends keyof DocumentForm>(key: K, value: DocumentForm[K]) => {

@@ -1,18 +1,20 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from uuid import UUID
 
 from sqlalchemy import and_, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from infrastructure.account.user import UserModel
 from infrastructure.contests.contest import ContestModel
+from infrastructure.enums import ApplicationCreator, ApplicationStatus, CoachLinkStatus, ContestStatus
 from infrastructure.participation.contest_application import ContestApplicationModel
 from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
 from infrastructure.participation.contest_result import ContestResultModel
-from infrastructure.enums import ApplicationCreator, ApplicationStatus, ContestStatus
 from infrastructure.qualifications.judge_assignment import JudgeAssignmentModel
-from infrastructure.account.user import UserModel
+from infrastructure.sport.coach_link import CoachLinkModel
+from infrastructure.sport.athlete_profile import AthleteProfileModel
 
 A, M, R, C = ContestApplicationModel, ContestApplicationMemberModel, ContestResultModel, ContestModel
 HELD = (ContestStatus.IN_PROGRESS, ContestStatus.COMPLETED, ContestStatus.ARCHIVED)
@@ -25,6 +27,7 @@ class Start:
     entered: bool
     place: int | None
     points: int
+    members: list[UserModel] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +50,7 @@ class ReportRepository:
     async def starts(self, user_id: UUID, since: date, until: date) -> list[Start]:
         """Возвращает выступления человека за период с местом и баллами."""
         result = await self._db.execute(
-            select(C, A.team_name, A.id, R.place, R.points)
+            select(C, A, A.id, R.place, R.points)
             .join(A, A.contest_id == C.id)
             .join(M, and_(M.application_id == A.id, M.user_id == user_id, M.is_active))
             .outerjoin(R, and_(R.application_id == A.id, R.user_id == user_id))
@@ -57,8 +60,8 @@ class ReportRepository:
         rows = list(result.tuples())
         entered = await self._entered([row[2] for row in rows])
         return [
-            Start(contest, team, application_id in entered, place, points or 0)
-            for contest, team, application_id, place, points in rows
+            Start(contest, application.team_name, application_id in entered, place, points or 0, [member.user for member in application.members if member.is_active])
+            for contest, application, application_id, place, points in rows
         ]
 
     async def coached(self, coach_id: UUID, since: date, until: date) -> list[Coached]:
@@ -91,7 +94,15 @@ class ReportRepository:
         return (await self._db.scalars(query)).all()
 
     async def coaches(self, coach_id: UUID, athlete_id: UUID) -> bool:
-        """Проверяет, тренирует ли этот тренер данного спортсмена."""
+        """Проверяет, тренирует ли тренер спортсмена: по активной связи или по одобренной заявке."""
+        linked = select(
+            exists().where(
+                CoachLinkModel.coach_id == coach_id, CoachLinkModel.athlete_id == athlete_id,
+                CoachLinkModel.status == CoachLinkStatus.ACTIVE,
+            )
+        )
+        if await self._db.scalar(linked):
+            return True
         query = select(
             exists().where(
                 A.created_by == coach_id, A.created_as == ApplicationCreator.COACH,
@@ -107,3 +118,7 @@ class ReportRepository:
             return set()
         rows = await self._db.scalars(select(R.application_id).where(R.application_id.in_(application_ids)).distinct())
         return set(rows.all())
+
+    async def profile(self, user_id: UUID) -> AthleteProfileModel | None:
+        """Возвращает спортивный профиль человека с организацией для отчёта."""
+        return await self._db.get(AthleteProfileModel, user_id)

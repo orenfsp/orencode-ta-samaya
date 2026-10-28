@@ -11,6 +11,11 @@ import infrastructure.content.calendar_event
 import infrastructure.participation.contest_application
 import infrastructure.account.login_device
 import infrastructure.participation.contest_result
+import infrastructure.participation.rating_setting
+import infrastructure.disputes.appeal
+import infrastructure.disputes.appeal_file
+import infrastructure.disputes.violation
+import infrastructure.disputes.violation_file
 import infrastructure.participation.document
 import infrastructure.account.guardian_consent
 import infrastructure.content.news_article
@@ -26,6 +31,26 @@ import infrastructure.qualifications.judge_assignment
 import infrastructure.qualifications.judge_document
 import infrastructure.qualifications.deadline_notice
 import infrastructure.squads.squad
+import infrastructure.qualifications.evsk_rule
+import infrastructure.services.reminder_log
+import infrastructure.services.report_deadline
+import infrastructure.sport.organization
+import infrastructure.sport.athlete_profile
+import infrastructure.sport.athlete_discipline
+import infrastructure.sport.athlete_organization
+import infrastructure.sport.antidoping_certificate
+import infrastructure.sport.coach_link
+import infrastructure.sport.coach_link_event
+import infrastructure.training.organization_program
+import infrastructure.training.organization_coach
+import infrastructure.training.training_group
+import infrastructure.training.group_enrollment
+import infrastructure.training.session_attendance
+import infrastructure.training.training_session
+import infrastructure.training.standard_norm_discipline
+import infrastructure.training.standard_norm
+import infrastructure.training.norm_result
+import infrastructure.training.attestation
 from applications.features import router as applications_router
 from analytics.features import router as analytics_router
 from audit.features import router as audit_router
@@ -51,7 +76,15 @@ from people.features import router as people_router
 from qualifications.dependencies import deadline_watcher
 from qualifications.features import router as qualifications_router
 from reports.features import router as reports_router
+from profiles.features import router as profiles_router
+from registry.features.router import router as registry_router
+from deadlines.dependencies import calendar_watcher
+from deadlines.features.router import router as deadlines_router
+from readiness.features.router import router as readiness_router
+from evsk.features.router import router as evsk_router
+from disputes.features.router import router as disputes_router
 from squads.features import router as squads_router
+from training.features import router as training_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -63,6 +96,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     telegram = telegram_api()
     tasks = [asyncio.create_task(outbox_worker(telegram).run())] if settings.mail_worker_enabled else []
     tasks.append(asyncio.create_task(deadline_watcher().run()))
+    tasks.append(asyncio.create_task(calendar_watcher().run()))
     if settings.codeforces_enabled:
         tasks.append(asyncio.create_task(codeforces_watcher().run()))
     if telegram:
@@ -100,7 +134,14 @@ api.include_router(documents_router)
 api.include_router(people_router)
 api.include_router(qualifications_router)
 api.include_router(reports_router)
+api.include_router(profiles_router)
+api.include_router(registry_router)
+api.include_router(deadlines_router)
+api.include_router(readiness_router)
+api.include_router(evsk_router)
+api.include_router(disputes_router)
 api.include_router(consents_router)
 api.include_router(analytics_router)
 api.include_router(squads_router)
+api.include_router(training_router)
 app.include_router(api)

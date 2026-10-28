@@ -4,7 +4,7 @@ import type { DictionaryApi } from './http-api'
 
 /*
  * Временная подмена API справочников для dev, пока бэк (ветка Ivan-002) не готов.
- * Повторяет контракт docs/004_tz_dictionaries.md: те же ответы, 409 name_taken / in_use и 422 по полям.
+ * Повторяет контракт API_DOCUMENTATION.md: те же ответы, 409 name_taken / in_use и 422 по полям.
  * Данные живут в памяти вкладки и сбрасываются при перезагрузке.
  */
 

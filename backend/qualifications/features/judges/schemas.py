@@ -28,15 +28,17 @@ class AssignmentOut(BaseModel):
     judge: PersonOut
     position: PositionOut
     category: CategoryOut | None
+    conflicts: list[str] = []
 
     @classmethod
-    def of(cls, item: JudgeAssignmentModel, category: QualificationModel | None) -> "AssignmentOut":
-        """Строит схему назначения судьи из доменной модели."""
+    def of(cls, item: JudgeAssignmentModel, category: QualificationModel | None, conflicts: list[str] | None = None) -> "AssignmentOut":
+        """Строит схему назначения судьи из доменной модели с конфликтами интересов."""
         return cls(
             id=item.id,
             judge=PersonOut.of(item.judge),
             position=PositionOut(id=item.position.id, name=item.position.name),
             category=CategoryOut.of(category),
+            conflicts=conflicts or [],
         )
 
 
@@ -49,6 +51,7 @@ class PanelOut(BaseModel):
 class CandidateOut(BaseModel):
     judge: PersonOut
     category: CategoryOut | None
+    conflicts: list[str] = []
 
 
 class AssignIn(BaseModel):

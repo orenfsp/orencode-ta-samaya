@@ -1,5 +1,6 @@
 import {
   isOnlineFormat,
+  type CalendarPlan,
   type CompetitionFile,
   type CompetitionInput,
   type ManagedCompetition,
@@ -37,6 +38,8 @@ export interface Draft {
   registration_closes_at: string
   prize_fund_text: string
   prize_fund_amount: string
+  calendar_plan: CalendarPlan
+  calendar_plan_number: string
   regulations: CompetitionFile | null
   photos: CompetitionFile[]
   organizer_id: string
@@ -71,6 +74,8 @@ export function toDraft(item: ManagedCompetition | undefined, organizerId: strin
     registration_closes_at: item ? toLocalInput(item.registration_closes_at) : '',
     prize_fund_text: item?.prize_fund_text ?? '',
     prize_fund_amount: id(item?.prize_fund_amount),
+    calendar_plan: item?.calendar_plan ?? 'none',
+    calendar_plan_number: item?.calendar_plan_number ?? '',
     regulations: item?.regulations ?? null,
     photos: item?.photos ?? [],
     organizer_id: item?.organizer.id ?? organizerId,
@@ -105,6 +110,8 @@ export function validate(draft: Draft, formatName: string | undefined): Errors {
     errors.registration_closes_at = 'Регистрация должна закрыться до начала соревнования'
   if (draft.prize_fund_amount && Number(draft.prize_fund_amount) < 0)
     errors.prize_fund_amount = 'Сумма не может быть отрицательной'
+  if (draft.calendar_plan === 'none' && draft.calendar_plan_number.trim())
+    errors.calendar_plan_number = 'Номер указывают вместе с календарным планом'
   if (draft.verify_now && !draft.rating_points.length)
     errors.rating_points = 'Укажите баллы хотя бы за одно место'
   return errors
@@ -132,6 +139,8 @@ export function toInput(draft: Draft, admin: boolean, creating: boolean): Compet
     registration_closes_at: fromLocalInput(draft.registration_closes_at),
     prize_fund_text: draft.prize_fund_text.trim() || null,
     prize_fund_amount: num(draft.prize_fund_amount),
+    calendar_plan: draft.calendar_plan,
+    calendar_plan_number: draft.calendar_plan === 'none' ? null : draft.calendar_plan_number.trim() || null,
     regulations_file_id: draft.regulations?.id ?? null,
     photo_file_ids: draft.photos.map((photo) => photo.id),
   }

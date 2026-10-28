@@ -2,7 +2,16 @@ import { createBrowserRouter, Outlet, type RouteObject } from 'react-router'
 import { CabinetPage } from '@/pages/cabinet'
 import { CabinetAccountsPage } from '@/pages/cabinet-accounts'
 import { CabinetRatingPage } from '@/pages/cabinet-rating'
+import { CabinetAthleteProfilePage } from '@/pages/cabinet-athlete-profile'
+import { CabinetCoachAthletesPage } from '@/pages/cabinet-coach-athletes'
+import { CabinetDeadlinesPage } from '@/pages/cabinet-deadlines'
+import { CabinetDisputesPage } from '@/pages/cabinet-disputes'
+import { GlossaryPage } from '@/pages/glossary'
+import { VerifyQualificationPage } from '@/pages/verify-qualification'
 import { CabinetDocumentsPage } from '@/pages/cabinet-documents'
+import { CabinetOrganizationsPage } from '@/pages/cabinet-organizations'
+import { CabinetTrainingPage, NormsPage, TrainingGroupPage } from '@/pages/cabinet-training'
+import { CabinetRegistryPage } from '@/pages/cabinet-registry'
 import { CabinetJudgeAssignmentsPage } from '@/pages/cabinet-judge-assignments'
 import { CabinetQualificationPage } from '@/pages/cabinet-qualification'
 import { CabinetQualificationsReviewPage } from '@/pages/cabinet-qualifications-review'
@@ -185,6 +194,71 @@ export const router = createBrowserRouter([
               </RequireCabinetRole>
             ),
           },
+          { path: 'deadlines', element: <CabinetDeadlinesPage /> },
+          {
+            path: 'disputes',
+            element: (
+              <RequireCabinetRole role={['athlete', 'coach', 'federation']}>
+                <CabinetDisputesPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'profile',
+            element: (
+              <RequireCabinetRole role="athlete">
+                <CabinetAthleteProfilePage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'athletes',
+            element: (
+              <RequireCabinetRole role="coach">
+                <CabinetCoachAthletesPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'registry',
+            element: (
+              <RequireCabinetRole role="federation">
+                <CabinetRegistryPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'organizations',
+            element: (
+              <RequireCabinetRole role="federation">
+                <CabinetOrganizationsPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'training',
+            element: (
+              <RequireCabinetRole role={['athlete', 'coach', 'federation']}>
+                <CabinetTrainingPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'training/:groupId',
+            element: (
+              <RequireCabinetRole role={['coach', 'federation']}>
+                <TrainingGroupPage />
+              </RequireCabinetRole>
+            ),
+          },
+          {
+            path: 'norms',
+            element: (
+              <RequireCabinetRole role="federation">
+                <NormsPage />
+              </RequireCabinetRole>
+            ),
+          },
           {
             path: 'category',
             element: (
@@ -260,6 +334,8 @@ export const router = createBrowserRouter([
       { path: routes.ratingTable, element: <RatingTablePage /> },
       { path: routes.squads, element: <SquadsPage /> },
       { path: '/documents/:token', element: <DocumentPage /> },
+      { path: '/verify/qualifications/:token', element: <VerifyQualificationPage /> },
+      { path: routes.glossary, element: <GlossaryPage /> },
       { path: '/people/:id', element: <PersonPage /> },
       { path: routes.personalData, element: <PersonalDataPage /> },
       { path: routes.cookies, element: <CookiesPage /> },

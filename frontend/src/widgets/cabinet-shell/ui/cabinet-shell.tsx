@@ -6,6 +6,7 @@ import { cn } from '@/shared/lib'
 import { EmailVerifyStrip } from '@/features/email-verify'
 import { useNotificationSync } from '@/features/notification-center'
 import { BrandLogo, IconButton, IconClose, IconMenu } from '@/shared/ui'
+import { OnboardingTour } from './onboarding-tour'
 import { Sidebar } from './sidebar'
 
 /**
@@ -104,6 +105,7 @@ export function CabinetShell({ me, role, children }: { me: Me; role: Role; child
         )}
         {children}
       </main>
+      <OnboardingTour key={role} me={me} role={role} />
     </div>
   )
 }

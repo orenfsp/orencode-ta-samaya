@@ -9,6 +9,8 @@ import type {
   QualificationKind,
   QualificationPerson,
   QualificationStatus,
+  ResultChoice,
+  VerifiedQualification,
 } from '../model/types'
 
 export const qualificationApi = {
@@ -23,7 +25,12 @@ export const qualificationApi = {
       query: { kind, status: status === 'all' ? undefined : status },
     }),
   preview: (id: string) => request<{ valid_until: string | null }>(`/admin/qualifications/${id}/preview`),
-  approve: (id: string) => request<Qualification>(`/admin/qualifications/${id}/approve`, { method: 'POST' }),
+  approve: (id: string, order: { order_number: string; order_date: string }) =>
+    request<Qualification>(`/admin/qualifications/${id}/approve`, { method: 'POST', body: order }),
+  results: (userId?: string, signal?: AbortSignal) =>
+    request<ResultChoice[]>('/me/qualification-results', { query: { user_id: userId }, signal }),
+  verify: (token: string, signal?: AbortSignal) =>
+    request<VerifiedQualification>(`/verify/qualifications/${encodeURIComponent(token)}`, { signal }),
   reject: (id: string, reason: string) =>
     request<Qualification>(`/admin/qualifications/${id}/reject`, { method: 'POST', body: { reason } }),
   documentUrl: (fileId: string) => fileUrl(`/files/${fileId}`),

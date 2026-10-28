@@ -7,6 +7,9 @@ from uuid import UUID
 from sqlalchemy import Select, case, exists, func, or_, select, union, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from infrastructure.qualifications.judge_assignment import JudgeAssignmentModel
+from infrastructure.sport.coach_link import CoachLinkModel
+from infrastructure.dictionaries.dictionary_contest_format import DictionaryContestFormatModel
 from infrastructure.contests.contest import ContestModel
 from infrastructure.participation.contest_application import ContestApplicationModel
 from infrastructure.participation.contest_application_member import ContestApplicationMemberModel
@@ -14,6 +17,7 @@ from infrastructure.contests.contest_academic_group import contest_academic_grou
 from infrastructure.contests.contest_age_group import contest_age_groups
 from infrastructure.participation.contest_result import ContestResultModel
 from infrastructure.enums import (
+    CoachLinkStatus,
     ApplicationCreator,
     ApplicationStatus,
     ContestStatus,
@@ -26,6 +30,8 @@ LIVE_APPLICATIONS = (ApplicationStatus.FORMING, ApplicationStatus.SUBMITTED, App
 
 @dataclass(slots=True)
 class ContestQuery:
+    mine_user_id: UUID | None = None
+    online: bool | None = None
     statuses: frozenset[ContestStatus] | None = None
     organizer_id: UUID | None = None
     discipline_id: int | None = None
@@ -57,6 +63,22 @@ def _fresh(statement: Select) -> Select:
 def _conditions(query: ContestQuery) -> list[Any]:
     """Строит список условий SQL-фильтра соревнований из полей ContestQuery."""
     conditions: list[Any] = []
+    if query.online is not None:
+        online_format = select(DictionaryContestFormatModel.id).where(DictionaryContestFormatModel.name.ilike("%онлайн%"))
+        conditions.append(ContestModel.contest_format_id.in_(online_format) if query.online else ContestModel.contest_format_id.not_in(online_format))
+    if query.mine_user_id is not None:
+        user_id = query.mine_user_id
+        linked = select(CoachLinkModel.athlete_id).where(CoachLinkModel.coach_id == user_id, CoachLinkModel.status == CoachLinkStatus.ACTIVE)
+        member_applications = select(ContestApplicationMemberModel.application_id).where(
+            ContestApplicationMemberModel.is_active.is_(True),
+            or_(ContestApplicationMemberModel.user_id == user_id, ContestApplicationMemberModel.user_id.in_(linked)),
+        )
+        applications = exists().where(
+            ContestApplicationModel.contest_id == ContestModel.id,
+            or_(ContestApplicationModel.created_by == user_id, ContestApplicationModel.id.in_(member_applications)),
+        )
+        assignments = exists().where(JudgeAssignmentModel.contest_id == ContestModel.id, JudgeAssignmentModel.judge_id == user_id, JudgeAssignmentModel.removed_at.is_(None))
+        conditions.append(or_(ContestModel.organizer_id == user_id, applications, assignments))
     if query.statuses is not None:
         conditions.append(ContestModel.status.in_(query.statuses))
     if query.organizer_id is not None:

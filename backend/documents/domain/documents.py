@@ -24,8 +24,9 @@ from documents.repositories.pg_documents import DocumentRepository
 from infrastructure.contests.contest import ContestModel
 from infrastructure.participation.contest_application import ContestApplicationModel
 from infrastructure.participation.document import DocumentModel
-from infrastructure.enums import ApplicationCreator, ApplicationStatus, ContestStatus, DocumentKind
+from infrastructure.enums import ApplicationCreator, ApplicationStatus, ContestStatus, DocumentKind, QualificationKind
 from infrastructure.account.user import UserModel
+from qualifications.repositories.pg_qualifications import QualificationRepository
 from results.repositories.pg_results import ResultRepository
 
 S = ContestStatus
@@ -73,12 +74,13 @@ class DocumentForm:
 @dataclass(slots=True)
 class Person:
     user: UserModel
-    role: Literal["athlete", "coach", "judge"]
+    role: Literal["athlete", "coach", "judge", "organizer"]
     team: str | None = None
     place: int | None = None
     athletes: list[str] | None = None
     disqualified: bool = False
     position: str | None = None
+    panel: list[dict[str, str | None]] | None = None
 
 
 def full_name(user: UserModel) -> str:
@@ -109,6 +111,7 @@ class Documents:
         K.THANKS: "award.html",
         K.JUDGE_THANKS: "award.html",
         K.REFERENCE: "reference.html",
+        K.JUDGE_PANEL: "judge_panel.html",
     }
 
     def __init__(
@@ -118,11 +121,13 @@ class Documents:
         contests: ContestRepository,
         applications: ApplicationRepository,
         results: ResultRepository,
+        qualifications: QualificationRepository,
         audit: Audit,
         settings: Settings,
     ) -> None:
         """Сохраняет зависимости."""
         self._uow = uow
+        self._qualifications = qualifications
         self._documents = documents
         self._contests = contests
         self._applications = applications
@@ -275,6 +280,8 @@ class Documents:
 
     async def recipients(self, contest: ContestModel, kind: DocumentKind, form: DocumentForm) -> list[Person]:
         """Определяет получателей документа вида kind: спортсмены, тренеры или судьи по правилам вида."""
+        if kind == K.JUDGE_PANEL:
+            return await self._panel(contest)
         entries = await self._applications.list_approved(contest.id)
         results = {(row.application_id, row.user_id): row.place for row in await self._results.list(contest.id)}
         entered = {application_id for application_id, _ in results}
@@ -311,6 +318,25 @@ class Documents:
                 for item in await self._results.judges(contest.id)
             ]
         return sorted(chosen, key=lambda item: (item.role, item.place or 10**6, item.team or "", full_name(item.user)))
+
+    async def _panel(self, contest: ContestModel) -> list[Person]:
+        """Справка о составе коллегии — одна на соревнование, получатель организатор; в ней судьи с категорией на дату старта."""
+        judges = await self._results.judges(contest.id)
+        if not judges:
+            return []
+        categories = await self._qualifications.valid_on(
+            [item.judge_id for item in judges], QualificationKind.JUDGE_CATEGORY, contest.starts_on
+        )
+        panel: list[dict[str, str | None]] = []
+        for item in judges:
+            category = categories.get(item.judge_id)
+            panel.append({
+                "name": full_name(item.judge),
+                "position": item.position.name,
+                "category": category.judge_category.name if category and category.judge_category else None,
+                "valid_until": category.valid_until.isoformat() if category and category.valid_until else None,
+            })
+        return [Person(contest.organizer, "organizer", panel=panel)]
 
     @staticmethod
     def _coaches(
@@ -354,6 +380,7 @@ class Documents:
                 "place": person.place,
                 "athletes": person.athletes or [],
                 "position": person.position,
+                "panel": person.panel or [],
             },
         }
 
@@ -444,6 +471,8 @@ class Documents:
         """Подбирает текст ошибки для случая, когда получателей документа не нашлось."""
         if kind == K.JUDGE_THANKS:
             return "В судейской коллегии нет судей или никто не выбран"
+        if kind == K.JUDGE_PANEL:
+            return "В судейской коллегии нет судей: сначала назначьте коллегию"
         if kind == K.THANKS:
             return "Нет тренеров, чьи спортсмены получили место: благодарность связывается через заявки тренера"
         if kind == K.DIPLOMA or (kind == K.GRAMOTA and form.recipients == "winners"):

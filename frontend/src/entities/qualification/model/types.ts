@@ -1,4 +1,4 @@
-/** Разряды и судейские категории по контракту docs/013_tz_judges_ranks.md */
+/** Разряды и судейские категории по контракту API_DOCUMENTATION.md */
 export type QualificationKind = 'judge_category' | 'rank'
 export type QualificationStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'superseded'
 
@@ -27,6 +27,20 @@ export interface Qualification {
   valid_until: string | null
   decided_at: string | null
   created_at: string
+  /** Место из протокола, на основании которого запрошен разряд */
+  basis_result: {
+    result_id: number
+    contest_id: number
+    contest_title: string
+    contest_level: string
+    starts_on: string
+    place: number | null
+    points: number
+  } | null
+  order_number: string | null
+  order_date: string | null
+  /** Есть у присвоенных: ссылка проверки по QR */
+  token: string | null
 }
 
 export interface MyQualifications {
@@ -41,6 +55,28 @@ export interface QualificationInput {
   item_id: number
   document_file_id: string
   basis?: string
+  contest_result_id?: number
+}
+
+export interface ResultChoice {
+  id: number
+  contest_title: string
+  starts_on: string
+  place: number
+  points: number
+}
+
+/** Публичная проверка по QR: без лишних персональных данных */
+export interface VerifiedQualification {
+  valid: boolean
+  kind_title: string
+  item_name: string
+  person: string
+  status: string
+  valid_from: string | null
+  valid_until: string | null
+  order_number: string | null
+  order_date: string | null
 }
 
 export interface JudgeCategoryRef {
@@ -53,6 +89,8 @@ export interface JudgeAssignment {
   judge: QualificationPerson
   position: { id: number; name: string }
   category: JudgeCategoryRef | null
+  /** Участники соревнования, которых судья тренирует или заявлял */
+  conflicts: string[]
 }
 
 export interface JudgePanel {
@@ -65,6 +103,7 @@ export interface JudgeCandidate {
   judge: QualificationPerson
   /** Категория, действующая на дату соревнования; null — назначить нельзя */
   category: JudgeCategoryRef | null
+  conflicts: string[]
 }
 
 export interface MyJudgeAssignment {

@@ -37,7 +37,7 @@ export const steps = [
 
 const today = () => new Date().toISOString().slice(0, 10)
 
-/** Проверки шага на клиенте — те же, что у бэка (docs/api_map.md, RegisterIn), чтобы не гонять заведомо плохой запрос */
+/** Проверки шага на клиенте — те же, что у бэка (API_DOCUMENTATION.md, RegisterIn), чтобы не гонять заведомо плохой запрос */
 export function validateStep(index: number, draft: RegisterDraft): DraftErrors {
   const errors: DraftErrors = {}
   const name = (value: string) => value.trim().length >= 1 && value.trim().length <= 100

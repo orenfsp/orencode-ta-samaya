@@ -1,5 +1,5 @@
 import { personAvatar } from '@/entities/person'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import {
   qualificationApi,
@@ -10,7 +10,6 @@ import {
 import { formatDate } from '@/shared/lib'
 import {
   Button,
-  ConfirmModal,
   DataTable,
   IconFile,
   ReasonModal,
@@ -20,6 +19,7 @@ import {
   type StatusTone,
   PersonLine,
 } from '@/shared/ui'
+import { ApproveModal } from './approve-modal'
 
 const TONES: Record<Qualification['status'], StatusTone> = {
   pending: 'draft',
@@ -27,24 +27,6 @@ const TONES: Record<Qualification['status'], StatusTone> = {
   rejected: 'cancelled',
   withdrawn: 'done',
   superseded: 'done',
-}
-
-function ApproveText({ item, open }: { item: Qualification; open: boolean }) {
-  const preview = useQuery({
-    queryKey: ['qualifications', 'preview', item.id],
-    queryFn: () => qualificationApi.preview(item.id),
-    enabled: open,
-  })
-  const term = preview.isPending
-    ? 'Считаем срок…'
-    : preview.data?.valid_until
-      ? `Действует до ${formatDate(preview.data.valid_until)}.`
-      : 'Бессрочно.'
-  return (
-    <>
-      {item.user.name}: «{item.item_name}». {term} Прежняя ступень станет недействующей.
-    </>
-  )
 }
 
 const columns = (
@@ -70,7 +52,18 @@ const columns = (
     cell: (item) => (
       <span className="flex min-w-0 flex-col">
         <span>{item.item_name}</span>
+        {item.basis_result && (
+          <span className="text-xs text-muted">
+            {item.basis_result.place} место · {item.basis_result.contest_title}
+          </span>
+        )}
         {item.basis && <span className="text-xs text-muted">Основание: {item.basis}</span>}
+        {item.order_number && (
+          <span className="text-xs text-muted">
+            Приказ {item.order_number}
+            {item.order_date && ` от ${formatDate(item.order_date)}`}
+          </span>
+        )}
       </span>
     ),
   },
@@ -138,9 +131,10 @@ export function QualificationReviewList({
   empty?: ReactNode
 }) {
   const client = useQueryClient()
-  const [approving, setApproving] = useState<{ open: boolean; item: Qualification | null }>({
+  const [approving, setApproving] = useState<{ open: boolean; item: Qualification | null; key: number }>({
     open: false,
     item: null,
+    key: 0,
   })
   const [rejecting, setRejecting] = useState<{ open: boolean; item: Qualification | null; key: number }>({
     open: false,
@@ -162,7 +156,7 @@ export function QualificationReviewList({
       <DataTable
         caption="Разряды и категории"
         columns={columns(
-          (item) => setApproving({ open: true, item }),
+          (item) => setApproving((current) => ({ open: true, item, key: current.key + 1 })),
           (item) => {
             reject.reset()
             setRejecting((current) => ({ open: true, item, key: current.key + 1 }))
@@ -173,23 +167,15 @@ export function QualificationReviewList({
         loading={loading}
         empty={empty}
       />
-      <ConfirmModal
+      <ApproveModal
+        key={approving.key}
         open={approving.open}
+        item={approving.item}
         onClose={() => setApproving((current) => ({ ...current, open: false }))}
-        title={approving.item?.kind === 'rank' ? 'Присвоить разряд' : 'Присвоить категорию'}
-        description={approving.item && <ApproveText item={approving.item} open={approving.open} />}
-        confirmLabel="Присвоить"
-        onConfirm={async () => {
-          if (!approving.item) return
-          try {
-            await qualificationApi.approve(approving.item.id)
-            showToast('Присвоено', { tone: 'success' })
-            setApproving((current) => ({ ...current, open: false }))
-          } catch (error) {
-            showToast('Не получилось присвоить', { tone: 'danger', description: (error as Error).message })
-          } finally {
-            void refresh()
-          }
+        onDone={() => {
+          void refresh()
+          showToast('Присвоено', { tone: 'success' })
+          setApproving((current) => ({ ...current, open: false }))
         }}
       />
       <ReasonModal

@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { useMyJudgeAssignments, type MyJudgeAssignment } from '@/entities/qualification'
+import { CalendarAside } from '@/widgets/calendar-aside'
 import { routes } from '@/shared/config'
 import { formatDate } from '@/shared/lib'
 import { Button, EmptyState, ErrorState, PageHeader, Skeleton, StatusTag } from '@/shared/ui'
@@ -56,30 +57,46 @@ export function CabinetJudgeAssignmentsPage() {
           { label: 'Мои назначения' },
         ]}
       />
-      {data.isPending ? (
-        <div className="flex flex-col gap-2">
-          {[1, 2, 3].map((id) => (
-            <Skeleton key={id} className="h-16 rounded-lg" />
-          ))}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="flex min-w-0 flex-col gap-6">
+          {data.isPending ? (
+            <div className="flex flex-col gap-2">
+              {[1, 2, 3].map((id) => (
+                <Skeleton key={id} className="h-16 rounded-lg" />
+              ))}
+            </div>
+          ) : data.isError ? (
+            <ErrorState error={data.error} onRetry={() => data.refetch()} />
+          ) : !items.length ? (
+            <EmptyState
+              title="Назначений пока нет"
+              description="Коллегию назначает организатор соревнования или федерация. Нужна действующая категория"
+              action={
+                <Button variant="secondary" to={routes.cabinetQualification('judge')}>
+                  Моя категория
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <Group title="Предстоящие" items={upcoming} />
+              <Group title="Прошедшие" items={past} />
+            </>
+          )}
         </div>
-      ) : data.isError ? (
-        <ErrorState error={data.error} onRetry={() => data.refetch()} />
-      ) : !items.length ? (
-        <EmptyState
-          title="Назначений пока нет"
-          description="Коллегию назначает организатор соревнования или федерация. Нужна действующая категория"
-          action={
-            <Button variant="secondary" to={routes.cabinetQualification('judge')}>
-              Моя категория
-            </Button>
-          }
+        <CalendarAside
+          title="Ближайшие назначения"
+          marks={items
+            .filter((item) => item.contest.status !== 'cancelled')
+            .map((item) => ({
+              id: item.contest.id,
+              title: item.contest.title,
+              start: item.contest.starts_on,
+              end: item.contest.ends_on,
+              to: routes.competition(item.contest.id),
+            }))}
         />
-      ) : (
-        <>
-          <Group title="Предстоящие" items={upcoming} />
-          <Group title="Прошедшие" items={past} />
-        </>
-      )}
+      </div>
     </section>
   )
 }

@@ -1,16 +1,8 @@
-from io import BytesIO
 from typing import Any
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.worksheet import Worksheet
-
 from analytics.domain.analytics import TITLES, Query, Result
-
-THIN = Side(style="thin", color="BFC3CC")
-BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
-HEAD = PatternFill("solid", fgColor="E6E9F0")
+from core import xlsx
+from core.xlsx import Column
 
 
 def filename(query: Query, block: str | None = None) -> str:
@@ -20,72 +12,29 @@ def filename(query: Query, block: str | None = None) -> str:
     return f"{name}-{period.start:%Y-%m-%d}-{period.end:%Y-%m-%d}.xlsx"
 
 
-def _sheet_title(title: str) -> str:
-    # Excel не пускает в имя листа []:*?/\ и длиннее 31 знака
-    """Приводит заголовок блока к допустимому имени листа Excel."""
-    return "".join(char for char in title if char not in "[]:*?/\\")[:31]
-
-
-def _header(sheet: Worksheet, title: str, parameters: list[list[Any]]) -> int:
-    """Пишет заголовок и строки параметров на лист, возвращает номер следующей свободной строки."""
-    sheet.cell(1, 1, title).font = Font(bold=True, size=14)
-    row = 2
-    for label, value in parameters:
-        sheet.cell(row, 1, label).font = Font(color="5A6070")
-        sheet.cell(row, 2, value)
-        row += 1
-    return row + 1
-
-
-def _fill(sheet: Worksheet, result: Result, start: int) -> None:
-    """Выводит все таблицы результата на лист начиная со строки start, подбирая ширины колонок."""
-    widths: dict[int, int] = {}
-    row = start
-    for table in result.tables:
-        sheet.cell(row, 1, table.title).font = Font(bold=True, size=12)
-        row += 1
-        for column, header in enumerate(table.headers, 1):
-            cell = sheet.cell(row, column, header)
-            cell.font = Font(bold=True)
-            cell.fill = HEAD
-            cell.border = BORDER
-            cell.alignment = Alignment(wrap_text=True, vertical="center")
-            widths[column] = max(widths.get(column, 0), len(header))
-        row += 1
-        for values in table.rows:
-            for column, value in enumerate(values, 1):
-                index = column - 1
-                if index in table.percent_columns and isinstance(value, (int, float)):
-                    cell = sheet.cell(row, column, value / 100)
-                    cell.number_format = "0.0%"
-                else:
-                    cell = sheet.cell(row, column, "" if value is None else value)
-                cell.border = BORDER
-                widths[column] = max(widths.get(column, 0), len(str(value)))
-            row += 1
-        if not table.rows:
-            sheet.cell(row, 1, "Нет данных").font = Font(italic=True, color="5A6070")
-            row += 1
-        row += 1
-    for column, width in widths.items():
-        sheet.column_dimensions[get_column_letter(column)].width = min(max(width + 2, 12), 60)
-
-
 def build(results: list[Result], parameters: list[list[Any]], with_parameters_sheet: bool) -> bytes:
-    """Собирает книгу xlsx: по листу на каждый результат и опционально лист параметров; возвращает байты файла."""
-    book = Workbook()
-    first = book.active
-    assert first is not None
+    """Книга аналитики: лист параметров (по желанию) и по листу на блок; у каждой таблицы — числа числами, доли процентами."""
+    book = xlsx.book()
+    facts = [(str(label), value) for label, value in parameters]
     if with_parameters_sheet:
-        first.title = "Параметры"
-        _header(first, "Аналитика ФСП Оренбургской области", parameters)
-        first.column_dimensions["A"].width = 18
-        first.column_dimensions["B"].width = 40
-    for index, result in enumerate(results):
-        title = TITLES[result.block]
-        sheet = first if index == 0 and not with_parameters_sheet else book.create_sheet()
-        sheet.title = _sheet_title(title)
-        _fill(sheet, result, _header(sheet, title, parameters))
-    buffer = BytesIO()
-    book.save(buffer)
-    return buffer.getvalue()
+        overview = xlsx.sheet(book, "Параметры")
+        row = xlsx.header(overview, "Аналитика ФСП Оренбургской области", facts)
+        xlsx.table(
+            overview,
+            row,
+            [Column("Лист", width=34), Column("Что внутри", "wrap", 70)],
+            [[TITLES[result.block], ", ".join(table.title for table in result.tables)] for result in results],
+            freeze=False,
+        )
+    for result in results:
+        sheet = xlsx.sheet(book, TITLES[result.block])
+        row = xlsx.header(sheet, TITLES[result.block], facts)
+        for index, table in enumerate(result.tables):
+            row = xlsx.caption(sheet, row, table.title)
+            numeric = [all(isinstance(line[column], (int, float)) or line[column] is None for line in table.rows) and table.rows for column in range(len(table.headers))]
+            columns = [
+                Column(header, "percent" if column in table.percent_columns else "int" if numeric[column] and column else "wrap")
+                for column, header in enumerate(table.headers)
+            ]
+            row = xlsx.table(sheet, row, columns, table.rows, freeze=index == 0)
+    return xlsx.save(book)

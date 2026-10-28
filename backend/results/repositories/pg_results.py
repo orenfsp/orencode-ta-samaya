@@ -1,11 +1,14 @@
 from collections.abc import Sequence
+from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.participation.contest_application import ContestApplicationModel
 from infrastructure.participation.contest_result import ContestResultModel
-from infrastructure.enums import ApplicationStatus
+from infrastructure.enums import ApplicationStatus, QualificationKind, QualificationStatus
+from infrastructure.sport.athlete_profile import AthleteProfileModel
+from infrastructure.qualifications.qualification import QualificationModel
 from infrastructure.qualifications.judge_assignment import JudgeAssignmentModel
 from infrastructure.qualifications.judge_document import JudgeDocumentModel
 
@@ -53,3 +56,11 @@ class ResultRepository:
         await self._db.execute(delete(R).where(R.contest_id == contest_id))
         self._db.add_all(items)
         await self._db.flush()
+
+    async def profiles(self, user_ids: Sequence[UUID]) -> Sequence[AthleteProfileModel]:
+        """Возвращает спортивные профили участников для протокола."""
+        return (await self._db.scalars(select(AthleteProfileModel).where(AthleteProfileModel.user_id.in_(user_ids)))).all()
+
+    async def categories(self, judge_ids: Sequence[UUID]) -> Sequence[QualificationModel]:
+        """Возвращает присвоенные категории судей с историей для выбора на дату соревнования."""
+        return (await self._db.scalars(select(QualificationModel).where(QualificationModel.user_id.in_(judge_ids), QualificationModel.kind == QualificationKind.JUDGE_CATEGORY, QualificationModel.status.in_((QualificationStatus.APPROVED, QualificationStatus.SUPERSEDED))).order_by(QualificationModel.valid_from.desc()))).all()

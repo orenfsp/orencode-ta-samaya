@@ -16,7 +16,12 @@ import {
   VerifiedMark,
 } from '@/shared/ui'
 
-const roleTitles = { athlete: 'Спортсмен', coach: 'Тренер', judge: 'Судья' } as const
+const roleTitles = {
+  athlete: 'Спортсмен',
+  coach: 'Тренер',
+  judge: 'Судья',
+  organizer: 'Организатор',
+} as const
 
 function Facts({ document }: { document: VerifiedDocument }) {
   const rows: [string, string | null][] = [
@@ -72,7 +77,8 @@ export function DocumentPage() {
     )
 
   const document = query.data
-  const reference = document.kind === 'reference'
+  const panel = document.kind === 'judge_panel'
+  const reference = document.kind === 'reference' || panel
 
   if (!document.valid)
     return (
@@ -123,7 +129,12 @@ export function DocumentPage() {
           ) : undefined
         }
       >
-        {reference ? (
+        {panel ? (
+          <p>
+            Подтверждает состав судейской коллегии соревнования «{document.contest.title}». Категории указаны
+            действующими на дату начала соревнования.
+          </p>
+        ) : reference ? (
           <p>
             Подтверждает, что {document.recipient}{' '}
             {document.role === 'judge'
@@ -144,6 +155,30 @@ export function DocumentPage() {
               <li key={line}>{line}</li>
             ))}
           </ul>
+        )}
+        {panel && (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-muted">
+                <th className="py-2 pr-3 font-normal">ФИО</th>
+                <th className="py-2 pr-3 font-normal">Должность</th>
+                <th className="py-2 pr-3 font-normal">Категория</th>
+                <th className="py-2 font-normal">Действует до</th>
+              </tr>
+            </thead>
+            <tbody>
+              {document.panel.map((line) => (
+                <tr key={`${line.name}-${line.position}`} className="border-b border-line-soft align-top">
+                  <td className="py-2 pr-3 text-ink">{line.name}</td>
+                  <td className="py-2 pr-3">{line.position}</td>
+                  <td className="py-2 pr-3">{line.category ?? 'Нет действующей'}</td>
+                  <td className="py-2 font-mono tabular-nums">
+                    {line.valid_until ? formatDate(`${line.valid_until}T12:00:00Z`) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
         <Facts document={document} />
       </DocumentSheet>

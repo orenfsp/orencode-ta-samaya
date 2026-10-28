@@ -6,6 +6,7 @@ import type {
   ProfileInput,
   RegisterInput,
   ResetPasswordInput,
+  Role,
   User,
 } from '../model/types'
 
@@ -22,6 +23,8 @@ export const sessionApi = {
   login: (body: LoginInput) => request<User>('/auth/login', { method: 'POST', body }),
   register: (body: RegisterInput) => request<User>('/auth/register', { method: 'POST', body }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  /** Навигатор новичка по кабинету роли пройден или пропущен */
+  completeOnboarding: (role: Role) => request<void>(`/me/roles/${role}/onboarding`, { method: 'POST' }),
   saveCodeforces: (handle: string) =>
     request<CodeforcesInfo>('/me/codeforces', { method: 'PUT', body: { handle } }),
   removeCodeforces: () => request<void>('/me/codeforces', { method: 'DELETE' }),

@@ -2,15 +2,17 @@ from typing import Annotated
 from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Path, Response
+from fastapi import APIRouter, Body, Depends, File, Path, Response, UploadFile
 
 from auth.dependencies import CurrentUser, require_role
+from core.config import settings
+from core.errors import FileTooLarge
 from core.request import ClientIp
 from infrastructure.enums import Role
 from infrastructure.account.user import UserModel
-from results.dependencies import ResultsDep
+from results.dependencies import ProtocolImportDep, ResultsDep
 from results.domain.results import Results
-from results.features.manage.schemas import AthleteOut, EntryOut, ResultsFormOut, ResultsIn
+from results.features.manage.schemas import AthleteOut, EntryOut, ImportOut, ImportRowOut, ResultsFormOut, ResultsIn
 
 ContestId = Annotated[int, Path()]
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -62,8 +64,39 @@ def build(prefix: str, role: Role, tag: str) -> APIRouter:
         results: ResultsDep,
     ) -> ResultsFormOut:
         """Сохраняет места участников и возвращает обновлённую форму."""
-        await results.save(user.id, federation, contest_id, [(item.application_id, item.place) for item in body.items], ip)
+        reason = f"Импорт протокола: {body.source}" if body.source else None
+        await results.save(user.id, federation, contest_id, [(item.application_id, item.place) for item in body.items], ip,
+                           reason)
         return await _form(results, user.id, federation, contest_id)
+
+    @router.post("/contests/{contest_id}/results/import", summary="Импорт протокола из xlsx или PDF: предпросмотр")
+    async def import_preview(
+        contest_id: ContestId,
+        file: Annotated[UploadFile, File()],
+        user: Annotated[CurrentUser, Depends(manager)],
+        importer: ProtocolImportDep,
+    ) -> ImportOut:
+        """Сопоставляет строки протокола с одобренными заявками; места сохраняются отдельно через PUT results."""
+        data = await file.read(settings.file_max_size_mb * 1024 * 1024 + 1)
+        if len(data) > settings.file_max_size_mb * 1024 * 1024:
+            raise FileTooLarge()
+        preview = await importer.preview(user.id, federation, contest_id, file.filename or "protocol", file.content_type, data)
+        return ImportOut(
+            file_name=preview.file_name,
+            matched=sum(1 for row in preview.rows if row.status == "matched"),
+            doubtful=sum(1 for row in preview.rows if row.status == "doubtful"),
+            unmatched=sum(1 for row in preview.rows if row.status == "unmatched"),
+            rows=[ImportRowOut(line=row.line, name=row.name, place=row.place, disqualified=row.disqualified,
+                               points=row.points, status=row.status, application_id=row.application_id,
+                               candidates=row.candidates, note=row.note) for row in preview.rows],
+            entries=[
+                EntryOut(application_id=entry.id, team_name=entry.team_name,
+                         athletes=[_athlete(member.user) for member in entry.members if member.is_active],
+                         entered=False, place=None)
+                for entry in preview.entries
+            ],
+            missing=preview.missing,
+        )
 
     @router.get("/contests/{contest_id}/results/protocol.xlsx", summary="Протокол xlsx", response_class=Response)
     async def protocol(contest_id: ContestId, user: Annotated[CurrentUser, Depends(manager)], results: ResultsDep) -> Response:

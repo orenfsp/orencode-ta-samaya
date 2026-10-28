@@ -18,7 +18,7 @@ class MyDocumentOut(BaseModel):
     kind: DocumentKind
     kind_title: str
     title: str
-    role: Literal["athlete", "coach", "judge"]
+    role: Literal["athlete", "coach", "judge", "organizer"]
     place: int | None
     issued_on: date
     contest: ContestRefOut

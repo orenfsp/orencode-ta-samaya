@@ -42,7 +42,7 @@ def _me_out(user: UserModel) -> MeOut:
 @router.get("")
 async def get_me(user: CurrentUserDep, accounts: AccountDep) -> MeOut:
     """Возвращает профиль текущего пользователя."""
-    return _me_out(await accounts.get_me(user.id, user.roles))
+    return _me_out(await accounts.get_me(user.id, user.granted or user.roles))
 
 
 @router.patch("")

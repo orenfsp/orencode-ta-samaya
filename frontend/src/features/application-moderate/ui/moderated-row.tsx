@@ -5,6 +5,7 @@ import { formatDate, formatDateTime } from '@/shared/lib'
 import {
   Button,
   Checkbox,
+  ConfirmModal,
   IconButton,
   IconDots,
   IconRefresh,
@@ -31,6 +32,7 @@ export function ModeratedRow({
   onToggle: () => void
 }) {
   const [rejecting, setRejecting] = useState(false)
+  const [confirmation, setConfirmation] = useState<'approve' | 'reset' | null>(null)
   const members = activeMembers(item)
   const title = item.team_name ?? (members[0] ? personName(members[0].user) : `Заявка №${item.id}`)
   const pending = item.status === 'submitted'
@@ -109,7 +111,7 @@ export function ModeratedRow({
         <div className="flex items-center gap-2">
           {pending ? (
             <>
-              <Button size="sm" loading={approving} onClick={() => moderation.approve.mutate([item.id])}>
+              <Button size="sm" loading={approving} onClick={() => setConfirmation('approve')}>
                 Одобрить
               </Button>
               <Button size="sm" variant="ghost" disabled={approving} onClick={() => setRejecting(true)}>
@@ -125,7 +127,7 @@ export function ModeratedRow({
                   id: 'reset',
                   label: 'Вернуть на рассмотрение',
                   icon: <IconRefresh size={18} />,
-                  onSelect: () => moderation.reset.mutate(item.id),
+                  onSelect: () => setConfirmation('reset'),
                 },
               ]}
               trigger={(props) => (
@@ -141,6 +143,18 @@ export function ModeratedRow({
           ) : null}
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmation !== null}
+        onClose={() => setConfirmation(null)}
+        onConfirm={async () => {
+          if (confirmation === 'approve') await moderation.approve.mutateAsync([item.id])
+          else if (confirmation === 'reset') await moderation.reset.mutateAsync(item.id)
+        }}
+        title={confirmation === 'approve' ? 'Одобрить заявку?' : 'Вернуть заявку на рассмотрение?'}
+        description={`${title}. ${confirmation === 'approve' ? 'Участники будут допущены к соревнованию и получат уведомление.' : 'Предыдущее решение будет отменено. По заявке нужно будет принять новое решение.'}`}
+        confirmLabel={confirmation === 'approve' ? 'Одобрить заявку' : 'Вернуть на рассмотрение'}
+      />
 
       <ReasonModal
         open={rejecting}

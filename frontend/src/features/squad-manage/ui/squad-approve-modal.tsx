@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
+import { useDictionaryOptions } from '@/entities/dictionary'
 import { fileApi } from '@/entities/file'
 import {
   squadApi,
@@ -20,6 +21,7 @@ import {
   FormAlert,
   Input,
   Modal,
+  Select,
   Skeleton,
   Spinner,
   showToast,
@@ -33,13 +35,25 @@ const size = (value: string, min: number) => {
   return Number.isInteger(number) && number >= min && number <= LIMIT ? number : null
 }
 
-function Lineup({ title, items, of }: { title: string; items: SquadCandidate[]; of: number }) {
+function Lineup({
+  title,
+  items,
+  of,
+  action,
+  onAction,
+}: {
+  title: string
+  items: SquadCandidate[]
+  of?: number
+  action: string
+  onAction: (item: SquadCandidate) => void
+}) {
   return (
     <section className="flex flex-col gap-2">
       <h3 className="flex items-baseline justify-between gap-3 font-medium">
         {title}
         <span className="font-mono text-sm text-muted tabular-nums">
-          {items.length} из {of}
+          {of === undefined ? items.length : `${items.length} из ${of}`}
         </span>
       </h3>
       {items.length > 0 && (
@@ -54,6 +68,9 @@ function Lineup({ title, items, of }: { title: string; items: SquadCandidate[]; 
               <span className="shrink-0 font-mono text-sm text-ink tabular-nums">
                 {formatNumber(item.points)}
               </span>
+              <Button variant="ghost" size="sm" onClick={() => onAction(item)}>
+                {action}
+              </Button>
             </li>
           ))}
         </ol>
@@ -63,7 +80,8 @@ function Lineup({ title, items, of }: { title: string; items: SquadCandidate[]; 
 }
 
 /**
- * Утверждение сборной по приказу. Состав — ровно верх рейтинга, править его нельзя.
+ * Утверждение сборной по приказу. Состав — верх рейтинга; федерация может исключить спортсмена вручную,
+ * его место займёт следующий. «Проект приказа» — PDF со списком сборной по текущему составу.
  * Если сборная уже есть, новый приказ заменяет её целиком, старый приказ удаляется.
  */
 export function SquadApproveModal({
@@ -87,10 +105,29 @@ export function SquadApproveModal({
   const [date, setDate] = useState(orenburgDay(new Date()))
   const [file, setFile] = useState<{ id: string; name: string } | null>(null)
   const [missing, setMissing] = useState<Record<string, string>>({})
+  const [minRank, setMinRank] = useState('')
+  const [excluded, setExcluded] = useState<string[]>([])
+  const ranks = useDictionaryOptions('rank_types')
 
   const main = size(mainSize, 1)
   const reserve = size(reserveSize, 0)
-  const draft = useSquadDraft(target, main ?? 1, reserve ?? 0, open && main !== null && reserve !== null)
+  const draft = useSquadDraft(
+    target,
+    main ?? 1,
+    reserve ?? 0,
+    open && main !== null && reserve !== null,
+    minRank ? Number(minRank) : undefined,
+    excluded,
+  )
+  const orderUrl = squadApi.orderDraftUrl(
+    target,
+    main ?? 1,
+    reserve ?? 0,
+    minRank ? Number(minRank) : undefined,
+    excluded,
+    number.trim(),
+    date,
+  )
 
   const upload = useMutation({
     mutationFn: fileApi.upload,
@@ -105,6 +142,8 @@ export function SquadApproveModal({
         order_number: number.trim(),
         order_date: date,
         order_file_id: file!.id,
+        min_rank_id: minRank ? Number(minRank) : undefined,
+        exclude_ids: excluded,
       }),
     onSuccess: (result) => {
       void client.invalidateQueries({ queryKey: squadKeys.all })
@@ -179,6 +218,16 @@ export function SquadApproveModal({
               onChange={(event) => setReserveSize(event.target.value)}
             />
           </Field>
+          <Field label="Разряд не ниже" hint="Пусто — по рейтингу без фильтра" className="col-span-2">
+            <Select
+              value={minRank}
+              onChange={(event) => setMinRank(event.target.value)}
+              options={[
+                { value: '', label: 'Любой, и без разряда' },
+                ...(ranks.data ?? []).map((item) => ({ value: String(item.id), label: item.name })),
+              ]}
+            />
+          </Field>
         </div>
 
         {draft.isError && !data ? (
@@ -199,8 +248,35 @@ export function SquadApproveModal({
                 резерв {data.reserve.length} из {data.reserve_size}
               </FormAlert>
             )}
-            <Lineup title="Основной состав" items={data.main} of={data.main_size} />
-            {data.reserve_size > 0 && <Lineup title="Резерв" items={data.reserve} of={data.reserve_size} />}
+            <Lineup
+              title="Основной состав"
+              items={data.main}
+              of={data.main_size}
+              action="Исключить"
+              onAction={(item) => setExcluded((ids) => [...ids, item.athlete_id])}
+            />
+            {data.reserve_size > 0 && (
+              <Lineup
+                title="Резерв"
+                items={data.reserve}
+                of={data.reserve_size}
+                action="Исключить"
+                onAction={(item) => setExcluded((ids) => [...ids, item.athlete_id])}
+              />
+            )}
+            {data.excluded.length > 0 && (
+              <Lineup
+                title="Исключены вручную"
+                items={data.excluded}
+                action="Вернуть"
+                onAction={(item) => setExcluded((ids) => ids.filter((id) => id !== item.athlete_id))}
+              />
+            )}
+            <div>
+              <Button variant="secondary" href={orderUrl} external>
+                Проект приказа и список, PDF
+              </Button>
+            </div>
             <p className="text-sm text-muted">
               Порядок как в рейтинге. При равных баллах выше тот, у кого свежее последняя победа, затем лучше
               среднее место

@@ -1,7 +1,7 @@
 import type { Ref } from '@/entities/competition'
 import type { RatingGroupKind } from '@/entities/rating'
 
-/** Сборная по контракту docs/014_tz_squads.md: дисциплина × группа, действует до нового приказа */
+/** Сборная по контракту API_DOCUMENTATION.md: дисциплина × группа, действует до нового приказа */
 export interface SquadMember {
   position: number
   athlete: { id: string; name: string }
@@ -49,6 +49,8 @@ export interface SquadDraft {
   available: number
   main: SquadCandidate[]
   reserve: SquadCandidate[]
+  /** Исключены федерацией вручную; их места заняли следующие по рейтингу */
+  excluded: SquadCandidate[]
   current: { id: number; order_number: string; order_date: string; main: number; reserve: number } | null
 }
 
@@ -58,6 +60,10 @@ export interface SquadForm extends SquadTarget {
   order_number: string
   order_date: string
   order_file_id: string
+  /** Только спортсмены с разрядом не ниже: id из справочника разрядов */
+  min_rank_id?: number
+  /** Исключённые вручную спортсмены */
+  exclude_ids?: string[]
 }
 
 export interface SquadApproved {

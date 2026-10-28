@@ -18,6 +18,7 @@ import {
   ErrorState,
   Field,
   FormAlert,
+  IconAlert,
   IconButton,
   IconTrash,
   Modal,
@@ -32,6 +33,17 @@ function categoryLine(item: { category: JudgeAssignment['category'] }) {
   return item.category.valid_until
     ? `${item.category.name}, до ${formatDate(item.category.valid_until)}`
     : item.category.name
+}
+
+/** Конфликт интересов: судья — тренер участников этого соревнования. Назначить можно, решение остаётся в журнале */
+function ConflictLine({ names }: { names: string[] }) {
+  return (
+    <span className="flex items-start gap-1.5 text-sm text-live-text">
+      <IconAlert size={16} className="mt-0.5 shrink-0" />
+      Тренер участников: {names.slice(0, 3).join(', ')}
+      {names.length > 3 ? ` и ещё ${names.length - 3}` : ''}
+    </span>
+  )
 }
 
 /**
@@ -126,6 +138,7 @@ export function JudgePanelModal({
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-ink">{item.judge.name}</span>
                     <span className="text-sm text-muted">{categoryLine(item)}</span>
+                    {item.conflicts.length > 0 && <ConflictLine names={item.conflicts} />}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-full sm:w-56">
@@ -168,7 +181,9 @@ export function JudgePanelModal({
                   options={eligible.map((item) => ({
                     value: item.judge.id,
                     label: item.judge.name,
-                    description: categoryLine(item),
+                    description: item.conflicts.length
+                      ? `${categoryLine(item)} · тренер участников: ${item.conflicts.length}`
+                      : categoryLine(item),
                   }))}
                 />
               </Field>

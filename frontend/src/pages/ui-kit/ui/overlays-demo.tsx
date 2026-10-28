@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, ConfirmModal, Field, Input, Modal, showToast } from '@/shared/ui'
+import { Button, ConfirmModal, Field, Input, Modal, ReasonModal, showToast } from '@/shared/ui'
 import { Row, Section } from './section'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -7,6 +7,8 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 export function OverlaysDemo() {
   const [modalOpen, setModalOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [reasonOpen, setReasonOpen] = useState(false)
+  const [failedOpen, setFailedOpen] = useState(false)
 
   return (
     <Section
@@ -20,6 +22,41 @@ export function OverlaysDemo() {
           <Button variant="secondary" onClick={() => setConfirmOpen(true)}>
             Отклонить заявку
           </Button>
+        </Row>
+        <Row label="Длинное описание из ячейки действий">
+          <div className="text-right font-mono whitespace-nowrap">
+            <Button variant="secondary" onClick={() => setReasonOpen(true)}>
+              Вернуть роль на проверку
+            </Button>
+            <ReasonModal
+              open={reasonOpen}
+              onClose={() => setReasonOpen(false)}
+              title="Вернуть роль на проверку?"
+              description="Зайцев Роман Олегович, роль «Судья». Кабинет судьи закроется до нового решения. Дополнительные сведения: https://example.test/abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789"
+              label="Комментарий для журнала"
+              confirmLabel="Вернуть роль на повторную проверку федерации"
+              tone="primary"
+              pending={false}
+              error={null}
+              onSubmit={() => setReasonOpen(false)}
+            />
+          </div>
+        </Row>
+        <Row label="Ошибка при подтверждении">
+          <Button variant="secondary" onClick={() => setFailedOpen(true)}>
+            Проверить ошибку
+          </Button>
+          <ConfirmModal
+            open={failedOpen}
+            onClose={() => setFailedOpen(false)}
+            onConfirm={async () => {
+              await wait(400)
+              throw new Error('Действие не выполнено. Проверьте соединение и попробуйте ещё раз')
+            }}
+            title="Подтвердить действие?"
+            description="Пример ответа с ошибкой: окно остаётся открытым, запрос можно повторить."
+            confirmLabel="Подтвердить"
+          />
         </Row>
         <Row label="Тосты">
           <Button variant="secondary" onClick={() => showToast('Заявка отправлена', { tone: 'success' })}>

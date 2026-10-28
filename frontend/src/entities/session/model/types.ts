@@ -1,4 +1,4 @@
-/** Типы по контракту docs/api_map.md (фичи register, login, me) */
+/** Типы по контракту API_DOCUMENTATION.md (фичи register, login, me) */
 
 export type Role = 'federation' | 'organizer' | 'athlete' | 'coach' | 'judge'
 export type RoleStatus = 'pending' | 'verified' | 'rejected'

@@ -15,6 +15,7 @@ from applications.features.participant.schemas import (
     AvailableOut,
     ContestBriefOut,
     MemberIn,
+    RepeatIn,
     TeamNameIn,
 )
 from auth.dependencies import CurrentUser, CurrentUserDep, current_user
@@ -115,6 +116,23 @@ async def create_for_athletes(
     """Тренер создаёт личные заявки сразу на нескольких указанных спортсменов."""
     items = await applications.create_for_athletes(user.id, user.roles, contest_id, body.member_ids, ip)
     return ApplicationList(items=[ApplicationOut.model_validate(item) for item in items])
+
+
+@router.post(
+    "/contests/{contest_id}/applications/repeat",
+    status_code=status.HTTP_201_CREATED,
+    summary="Подать заявку тем же составом, что на прошлом соревновании",
+)
+async def repeat_application(
+    contest_id: Annotated[int, Path()],
+    body: Annotated[RepeatIn, Body()],
+    user: Participant,
+    ip: ClientIp,
+    applications: ApplicationsDep,
+) -> ApplicationOut:
+    """Повторяет свою прошлую заявку тем же составом на новом соревновании."""
+    item = await applications.repeat(user.id, user.roles, contest_id, body.source_application_id, ip)
+    return ApplicationOut.model_validate(item)
 
 
 @router.get("/applications/{application_id}", summary="Заявка")

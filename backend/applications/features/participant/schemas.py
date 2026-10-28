@@ -188,6 +188,10 @@ class AthletesIn(BaseModel):
     member_ids: list[UUID] = Field(min_length=1, max_length=100)
 
 
+class RepeatIn(BaseModel):
+    source_application_id: int = Field(ge=1)
+
+
 class TeamNameIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

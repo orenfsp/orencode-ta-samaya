@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEventHandler, type ReactNode } from 'react'
 import { cn } from '@/shared/lib'
 import { Button } from './button'
+import { FormAlert } from './form-alert'
 import { IconButton } from './icon-button'
 import { IconClose } from './icons'
+import { lockModalScroll, unlockModalScroll } from './modal-scroll-lock'
 import { PortalContext } from './portal-context'
 
 /** Выход короче входа: закрытие не должно задерживать человека */
@@ -52,7 +54,7 @@ export function Modal({
     if (!dialog) return
     if (open) {
       if (!dialog.open) dialog.showModal()
-      document.documentElement.style.overflow = 'hidden'
+      lockModalScroll(dialog)
       const frame = requestAnimationFrame(() => (dialog.dataset.open = 'true'))
       return () => cancelAnimationFrame(frame)
     }
@@ -60,12 +62,17 @@ export function Modal({
     dialog.dataset.open = 'false'
     const timer = setTimeout(() => {
       dialog.close()
-      document.documentElement.style.overflow = ''
+      unlockModalScroll(dialog)
     }, EXIT_MS)
     return () => clearTimeout(timer)
   }, [open])
 
-  useEffect(() => () => void (document.documentElement.style.overflow = ''), [])
+  useEffect(() => {
+    const dialog = ref.current
+    return () => {
+      if (dialog) unlockModalScroll(dialog)
+    }
+  }, [])
 
   // Без onSubmit тело — обычный блок: form внутри формы не нужна
   const Panel = (onSubmit ? 'form' : 'section') as 'form'
@@ -77,13 +84,16 @@ export function Modal({
         ref.current = node
         setDialogEl(node)
       }}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       onCancel={(event) => {
         event.preventDefault()
+        event.stopPropagation()
         onClose()
       }}
-      className="group/modal m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-transparent p-0 backdrop:bg-transparent"
+      className="group/modal m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-transparent p-0 text-left font-sans text-body font-normal tracking-normal [overflow-wrap:anywhere] whitespace-normal backdrop:bg-transparent"
     >
       <div
         onMouseDown={(event) => event.target === event.currentTarget && onClose()}
@@ -97,7 +107,7 @@ export function Modal({
           onSubmit={onSubmit}
           noValidate={onSubmit ? true : undefined}
           className={cn(
-            'flex max-h-[92dvh] w-full flex-col overlay rounded-b-none sm:max-h-[min(88dvh,60rem)] sm:rounded-b-xl',
+            'flex max-h-[92dvh] w-full min-w-0 flex-col overlay rounded-b-none sm:max-h-[min(88dvh,60rem)] sm:rounded-b-xl',
             // Телефон: шторка выезжает снизу. Десктоп: поднимается на 12px и дорастает до 100%
             'translate-y-full sm:translate-y-3 sm:scale-[0.97] sm:opacity-0',
             'transition-[translate,scale,opacity] duration-180 ease-in',
@@ -110,12 +120,12 @@ export function Modal({
           <span aria-hidden="true" className="mx-auto mt-2 h-1 w-10 rounded-full bg-line sm:hidden" />
           <header
             className={cn(
-              'flex items-start gap-4 px-5 pt-3 pb-4 sm:px-6 sm:pt-6',
+              'flex shrink-0 items-start gap-4 px-5 pt-3 pb-4 sm:px-6 sm:pt-6',
               roomy && 'border-b border-line-soft',
             )}
           >
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <h2 id={titleId} className="text-h3 font-medium text-balance break-words text-ink">
+              <h2 id={titleId} className="text-h3 font-medium text-balance [overflow-wrap:anywhere] text-ink">
                 {title}
               </h2>
               {description && (
@@ -136,7 +146,7 @@ export function Modal({
             <PortalContext.Provider value={dialogEl}>
               <div
                 className={cn(
-                  'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6',
+                  'min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6',
                   roomy ? 'py-6' : 'pb-1',
                 )}
               >
@@ -146,7 +156,7 @@ export function Modal({
           )}
           <footer
             className={cn(
-              'flex flex-col-reverse gap-2 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6 sm:pb-6',
+              'flex shrink-0 flex-col-reverse gap-2 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:flex-row sm:flex-wrap sm:justify-end sm:px-6 sm:pb-6 [&>*]:max-w-full [&>*]:min-w-0',
               roomy && 'border-t border-line-soft sm:pt-4 sm:pb-4',
             )}
           >
@@ -185,13 +195,25 @@ export function ConfirmModal({
   tone = 'primary',
 }: ConfirmModalProps) {
   const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
+  const [error, setError] = useState<string | null>(null)
+  const close = () => {
+    setError(null)
+    onClose()
+  }
 
   const confirm = async () => {
+    if (pendingRef.current || !open) return
+    pendingRef.current = true
     setPending(true)
+    setError(null)
     try {
       await onConfirm()
-      onClose()
+      close()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Не удалось выполнить действие. Попробуйте ещё раз')
     } finally {
+      pendingRef.current = false
       setPending(false)
     }
   }
@@ -199,13 +221,13 @@ export function ConfirmModal({
   return (
     <Modal
       open={open}
-      onClose={pending ? () => {} : onClose}
+      onClose={pending ? () => {} : close}
       title={title}
       description={description}
       size="sm"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={pending}>
+          <Button variant="ghost" onClick={close} disabled={pending}>
             {cancelLabel}
           </Button>
           <Button variant={tone === 'danger' ? 'danger' : 'primary'} loading={pending} onClick={confirm}>
@@ -213,6 +235,8 @@ export function ConfirmModal({
           </Button>
         </>
       }
-    />
+    >
+      {error && <FormAlert>{error}</FormAlert>}
+    </Modal>
   )
 }

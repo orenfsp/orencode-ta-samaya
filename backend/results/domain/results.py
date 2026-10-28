@@ -8,6 +8,7 @@ from contests.repositories.pg_contests import ContestRepository
 from core.database import UnitOfWork
 from core.errors import InvalidStatus, NotFound, ValidationFailed
 from documents.domain.documents import Documents
+from evsk.domain.evsk import Evsk
 from files.repositories.s3_files import ObjectRepository
 from infrastructure.contests.contest import ContestModel
 from infrastructure.participation.contest_application import ContestApplicationModel
@@ -36,9 +37,10 @@ class Results:
         notifications: Notifications,
         documents: Documents,
         storage: ObjectRepository,
+        evsk: Evsk | None = None,
     ) -> None:
         """Сохраняет зависимости."""
-        self._storage = storage
+        self._storage, self._evsk = storage, evsk
         self._uow = uow
         self._results = results
         self._applications = applications
@@ -80,9 +82,15 @@ class Results:
         return contest, entries, places
 
     async def save(
-        self, user_id: UUID, is_federation: bool, contest_id: int, items: Sequence[tuple[int, int | None]], ip: str | None
+        self,
+        user_id: UUID,
+        is_federation: bool,
+        contest_id: int,
+        items: Sequence[tuple[int, int | None]],
+        ip: str | None,
+        reason: str | None = None,
     ) -> None:
-        """Сохраняет места участников соревнования, пересчитывает баллы и переиздаёт документы."""
+        """Сохраняет места участников, пересчитывает баллы и переиздаёт документы; reason — основание правки в журнале."""
         contest = await self._own(user_id, is_federation, contest_id, lock=True)
         if contest.status not in self.EDITABLE:
             raise InvalidStatus()
@@ -115,7 +123,7 @@ class Results:
             AuditAction.RESULTS_UPDATE,
             user_id=user_id,
             object_type="contest",
-            payload={"id": contest.id, "title": contest.title, "entries": len(places)},
+            payload={"id": contest.id, "title": contest.title, "entries": len(places), **({"reason": reason} if reason else {})},
             ip=ip,
         )
         await self._uow.commit()
@@ -138,7 +146,17 @@ class Results:
             )
             for item in await self._results.judge_documents(contest.id)
         ]
-        return f"protocol-{contest.id}.xlsx", Protocol.build(contest, entries, results, judges, files)
+        ranks = [
+            (f"{item.user.last_name} {item.user.first_name}", item.result.place or 0, item.rule.rank_type.name)
+            for item in await self._evsk.candidates(contest)
+        ] if self._evsk else []
+        profiles = await self._results.profiles([member.user_id for entry in entries for member in entry.members if member.is_active])
+        organizations = {item.user_id: item.organization.short_name or item.organization.name if item.organization else "Без организации" if item.no_organization else "" for item in profiles}
+        categories: dict[UUID, str] = {}
+        for category in await self._results.categories([item.judge_id for item in judges]):
+            if category.user_id not in categories and category.valid_from and category.valid_from <= contest.starts_on and (category.valid_until is None or category.valid_until >= contest.starts_on):
+                categories[category.user_id] = category.item_name
+        return f"protocol-{contest.id}.xlsx", Protocol.build(contest, entries, results, judges, files, ranks, organizations, categories)
 
     async def _own(self, user_id: UUID, is_federation: bool, contest_id: int, lock: bool = False) -> ContestModel:
         """Возвращает соревнование, если пользователь — его организатор или федерация; при lock блокирует строку."""

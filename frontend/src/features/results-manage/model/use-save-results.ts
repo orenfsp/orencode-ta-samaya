@@ -7,7 +7,8 @@ import { showToast } from '@/shared/ui'
 export function useSaveResults(scope: ResultsScope, contestId: number) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (items: PlaceInput[]) => resultApi.save(scope, contestId, items),
+    mutationFn: ({ items, source }: { items: PlaceInput[]; source?: string }) =>
+      resultApi.save(scope, contestId, items, source),
     onSuccess: (form) => {
       client.setQueryData(resultKeys.form(scope, contestId), form)
       void client.invalidateQueries({ queryKey: resultKeys.contest(contestId) })

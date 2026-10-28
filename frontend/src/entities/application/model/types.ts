@@ -1,6 +1,6 @@
 import type { CompetitionStatus, CompetitionSummary, ParticipationType, Ref } from '@/entities/competition'
 
-/** Типы по контракту docs/001_api_map.md, раздел «Заявки», и docs/010_tz_applications.md */
+/** Типы по контракту API_DOCUMENTATION.md, раздел «Заявки» */
 
 export type ApplicationStatus = 'forming' | 'submitted' | 'approved' | 'rejected' | 'withdrawn'
 export type MemberConfirmation = 'invited' | 'confirmed' | 'declined'

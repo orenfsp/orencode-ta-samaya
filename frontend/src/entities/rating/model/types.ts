@@ -8,8 +8,16 @@ export interface RatingLine {
   athlete: { id: string; full_name: string }
   municipality: Ref | null
   points: number
-  /** Сколько мест учтено за год */
+  /** Сколько мест учтено за сезон */
   contests: number
+  /** Сумма баллов до коэффициента стабильности */
+  base: number
+  /** Сколько раз призёр за сезон */
+  podiums: number
+  /** Применённый коэффициент стабильности или null */
+  factor: number | null
+  /** Расшифровка итога: «45 + 40 + 0 = 85 × 1,2 = 102» */
+  explain: string
 }
 
 /** Один рейтинг: дисциплина + группа */
@@ -36,13 +44,48 @@ export interface RatingStanding {
   total: number
   points: number
   contests: number
+  base: number
+  podiums: number
+  factor: number | null
+  explain: string
   scores: RatingScore[]
+}
+
+export type RatingSeason = 'rolling' | 'calendar'
+
+/** Правила подсчёта рейтинга, которые задаёт федерация */
+export interface RatingRules {
+  stability_factor: number
+  podium_place: number
+  podium_count: number
+  season: RatingSeason
+  season_title: string
+  /** Первый день текущего сезона */
+  since: string
+  formula: string
+}
+
+export interface RatingRulesInput {
+  stability_factor: number
+  podium_place: number
+  podium_count: number
+  season: RatingSeason
+}
+
+/** Своё место в рейтингах и причины, почему в части рейтингов тебя нет */
+export interface RatingStatus {
+  rules: RatingRules
+  in_rating: boolean
+  standings: RatingStanding[]
+  reasons: { code: string; text: string }[]
 }
 
 export interface RatingFilters {
   discipline_id?: string
   municipality_id?: string
   group_kind?: RatingGroupKind
+  /** Разряд не ниже: id из справочника разрядов */
+  min_rank_id?: string
 }
 
 export interface RatingTableQuery extends RatingFilters {

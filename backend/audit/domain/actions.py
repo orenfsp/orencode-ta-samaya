@@ -67,9 +67,36 @@ class AuditAction(StrEnum):
     JUDGE_DOCUMENT_UPLOAD = "judge_document.upload"
     JUDGE_DOCUMENT_REPLACE = "judge_document.replace"
     JUDGE_DOCUMENT_REMOVE = "judge_document.remove"
+    ORGANIZATION_CREATE = "organization.create"
+    ORGANIZATION_UPDATE = "organization.update"
+    SPORT_PROFILE_UPDATE = "sport_profile.update"
+    COACH_LINK_REQUEST = "coach_link.request"
+    COACH_LINK_CHANGE = "coach_link.change"
+    ANTIDOPING_SAVE = "antidoping.save"
+    REPORT_DEADLINE_SAVE = "report_deadline.save"
+    APPLICATION_REPEAT = "application.repeat"
+    EVSK_RULE_SAVE = "evsk_rule.save"
+    RATING_SETTINGS_SAVE = "rating.settings_save"
+    APPEAL_SUBMIT = "appeal.submit"
+    APPEAL_WITHDRAW = "appeal.withdraw"
+    APPEAL_REVIEW = "appeal.review"
+    APPEAL_DECIDE = "appeal.decide"
+    VIOLATION_REPORT = "violation.report"
+    VIOLATION_DECIDE = "violation.decide"
     SQUAD_APPROVE = "squad.approve"
     SQUAD_REPLACE = "squad.replace"
     SQUAD_DISSOLVE = "squad.dissolve"
+    TRAINING_PROGRAM_SAVE = "training_program.save"
+    ORGANIZATION_COACH_SAVE = "organization_coach.save"
+    TRAINING_GROUP_SAVE = "training_group.save"
+    ENROLLMENT_ADD = "enrollment.add"
+    ENROLLMENT_TRANSFER = "enrollment.transfer"
+    ENROLLMENT_EXPEL = "enrollment.expel"
+    TRAINING_SESSION_SAVE = "training_session.save"
+    TRAINING_SESSION_REMOVE = "training_session.remove"
+    NORM_SAVE = "norm.save"
+    NORM_RESULT_ADD = "norm_result.add"
+    ATTESTATION_DECIDE = "attestation.decide"
 
     @property
     def label(self) -> str:
@@ -145,9 +172,36 @@ ACTION_LABELS: dict[str, str] = {
     A.JUDGE_DOCUMENT_UPLOAD: "Судья загрузил документ к протоколу",
     A.JUDGE_DOCUMENT_REPLACE: "Судья заменил документ к протоколу",
     A.JUDGE_DOCUMENT_REMOVE: "Судья удалил документ к протоколу",
+    A.ORGANIZATION_CREATE: "Добавлена организация",
+    A.ORGANIZATION_UPDATE: "Изменена организация",
+    A.SPORT_PROFILE_UPDATE: "Изменён спортивный профиль",
+    A.COACH_LINK_REQUEST: "Тренер запросил привязку спортсмена",
+    A.COACH_LINK_CHANGE: "Изменена связь тренера и спортсмена",
+    A.ANTIDOPING_SAVE: "Отмечен антидопинговый курс",
+    A.REPORT_DEADLINE_SAVE: "Изменён отчётный срок",
+    A.APPLICATION_REPEAT: "Заявка подана тем же составом",
+    A.EVSK_RULE_SAVE: "Изменены правила ЕВСК",
+    A.RATING_SETTINGS_SAVE: "Изменены правила рейтинга",
+    A.APPEAL_SUBMIT: "Подана апелляция на результат",
+    A.APPEAL_WITHDRAW: "Апелляция отозвана",
+    A.APPEAL_REVIEW: "Апелляция взята на рассмотрение",
+    A.APPEAL_DECIDE: "Решение по апелляции",
+    A.VIOLATION_REPORT: "Рапорт о нарушении",
+    A.VIOLATION_DECIDE: "Решение по нарушению",
     A.SQUAD_APPROVE: "Утверждена сборная",
     A.SQUAD_REPLACE: "Сборная обновлена новым приказом",
     A.SQUAD_DISSOLVE: "Сборная расформирована",
+    A.TRAINING_PROGRAM_SAVE: "Изменены программы подготовки организации",
+    A.ORGANIZATION_COACH_SAVE: "Изменён состав тренеров-преподавателей",
+    A.TRAINING_GROUP_SAVE: "Создана или изменена учебно-тренировочная группа",
+    A.ENROLLMENT_ADD: "Спортсмен зачислен в группу",
+    A.ENROLLMENT_TRANSFER: "Спортсмен переведён в другую группу",
+    A.ENROLLMENT_EXPEL: "Спортсмен отчислен из группы",
+    A.TRAINING_SESSION_SAVE: "Занятие записано в журнал",
+    A.TRAINING_SESSION_REMOVE: "Занятие удалено из журнала",
+    A.NORM_SAVE: "Изменён справочник нормативов",
+    A.NORM_RESULT_ADD: "Внесены результаты сдачи нормативов",
+    A.ATTESTATION_DECIDE: "Решение по промежуточной аттестации",
 }
 
 AUDIT_OBJECTS: dict[str, str] = {
@@ -164,5 +218,11 @@ AUDIT_OBJECTS: dict[str, str] = {
     "qualification": "Разряд или категория",
     "judge_assignment": "Назначение судьи",
     "judge_document": "Документ судьи",
+    "organization": "Организация",
+    "coach_link": "Связь тренера и спортсмена",
     "squad": "Сборная",
+    "training_group": "Учебно-тренировочная группа",
+    "training_session": "Занятие",
+    "standard_norm": "Норматив",
+    "attestation": "Аттестация",
 }

@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validat
 
 from core.config import settings
 from infrastructure.enums import (
+    CALENDAR_PLAN_TITLES,
+    CalendarPlan,
     CONTEST_STATUS_TITLES,
     PARTICIPATION_TYPE_TITLES,
     ContestStatus,
@@ -84,6 +86,8 @@ class ContestOut(BaseModel):
     registration_closes_at: datetime
     prize_fund_text: str | None
     prize_fund_amount: int | None
+    calendar_plan: CalendarPlan
+    calendar_plan_number: str | None
     status: ContestStatus
     cancel_reason: str | None
     verification_status: VerificationStatus = Field(exclude=True)
@@ -92,6 +96,12 @@ class ContestOut(BaseModel):
     photos: list[FileOut] = Field(validation_alias="photo_files")
     organizer: OrganizerOut
     published_at: datetime | None
+
+    @computed_field
+    @property
+    def calendar_plan_title(self) -> str:
+        """Название календарного плана соревнования."""
+        return CALENDAR_PLAN_TITLES[self.calendar_plan]
 
     @model_validator(mode="before")
     @classmethod

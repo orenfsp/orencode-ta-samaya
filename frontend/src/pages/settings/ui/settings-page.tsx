@@ -9,6 +9,7 @@ import { DeliveryTest, PreferencesTable, TelegramSection } from '@/features/deli
 import { EmailChangeModal, EmailVerifyStrip } from '@/features/email-verify'
 import { routes } from '@/shared/config'
 import { Button, PageHeader, Skeleton, StatusTag } from '@/shared/ui'
+import { startTour } from '@/widgets/cabinet-shell'
 
 function Section({
   title,
@@ -92,6 +93,15 @@ export function SettingsPage() {
       <Section title="Проверка доставки">
         <div className="card p-5">
           <DeliveryTest email={me.email} emailVerified={me.email_verified} />
+        </div>
+      </Section>
+
+      <Section title="Навигатор по кабинету">
+        <div className="flex flex-col gap-4 card p-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-body text-muted">Пошаговый показ разделов кабинета и что в них делать</p>
+          <Button variant="secondary" onClick={startTour}>
+            Пройти заново
+          </Button>
         </div>
       </Section>
 

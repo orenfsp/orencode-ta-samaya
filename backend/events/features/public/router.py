@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Path, Query
 
+from auth.dependencies import OptionalUserDep
 from events.dependencies import CalendarDep
 from events.features.public.schemas import CalendarItemOut, CalendarPage, EventOut
 from infrastructure.content.calendar_event import CalendarEventModel
@@ -20,6 +21,10 @@ def today() -> date:
 @router.get("/calendar/events")
 async def list_events(
     calendar: CalendarDep,
+    user: OptionalUserDep,
+    discipline_id: Annotated[int | None, Query(ge=1)] = None,
+    online: Annotated[bool | None, Query()] = None,
+    mine: Annotated[bool, Query()] = False,
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
     kind: Annotated[Literal["event", "contest"] | None, Query()] = None,
@@ -29,7 +34,7 @@ async def list_events(
 ) -> CalendarPage:
     """Возвращает опубликованные события и/или соревнования за период с пагинацией."""
     start = date_from or today()
-    items, total = await calendar.feed(start, date_to or start + timedelta(days=365), kind, q.strip(), limit, offset)
+    items, total = await calendar.feed(start, date_to or start + timedelta(days=365), kind, q.strip(), limit, offset, discipline_id, online, mine, user.id if user else None)
     return CalendarPage(
         items=[
             CalendarItemOut.from_event(item) if isinstance(item, CalendarEventModel) else CalendarItemOut.from_contest(item)

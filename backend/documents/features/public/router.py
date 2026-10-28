@@ -84,6 +84,7 @@ async def verify(token: Token, documents: DocumentsDep) -> DocumentOut:
         place=who["place"],
         athletes=who["athletes"],
         position=who.get("position"),
+        panel=who.get("panel", []),
         contest=ContestRefOut(**item.data["contest"]),
     )
 

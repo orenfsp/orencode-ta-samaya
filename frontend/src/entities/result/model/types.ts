@@ -44,3 +44,28 @@ export interface PlaceInput {
 }
 
 export type ResultsScope = CompetitionScope
+
+/** Строка протокола из файла и найденная для неё заявка */
+export interface ImportRow {
+  line: number
+  name: string
+  place: number | null
+  disqualified: boolean
+  points: string | null
+  /** matched — нашли однозначно, doubtful — совпала часть ФИО или несколько заявок, unmatched — не нашли */
+  status: 'matched' | 'doubtful' | 'unmatched'
+  application_id: number | null
+  candidates: number[]
+  note: string | null
+}
+
+export interface ImportPreview {
+  file_name: string
+  matched: number
+  doubtful: number
+  unmatched: number
+  rows: ImportRow[]
+  entries: ResultEntry[]
+  /** Одобренные заявки, которых нет в файле */
+  missing: number[]
+}

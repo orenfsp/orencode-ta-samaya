@@ -14,6 +14,7 @@ import type { ApplicationActions } from '../model/use-application-actions'
 import { AcademicGroupForm } from './academic-group-form'
 import { ApplicationBody } from './application-body'
 import { ApplicationForm } from './application-form'
+import { RepeatTeam } from './repeat-team'
 
 type View = 'list' | 'new' | number
 
@@ -127,6 +128,7 @@ export function ContestApplicationsModal({
                     Созданы: {teams.join(', ')}. Соберите следующую команду или закройте окно
                   </FormAlert>
                 )}
+                <RepeatTeam contest={contest} role={role} userId={me.id} onDone={() => setView('list')} />
                 <ApplicationForm
                   key={teams.length}
                   contest={contest}

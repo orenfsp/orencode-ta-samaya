@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import {
   qualificationApi,
   qualificationKeys,
@@ -18,11 +18,13 @@ import {
   ErrorState,
   IconPlus,
   PageHeader,
+  QrCode,
   Skeleton,
   StatusTag,
   showToast,
   type StatusTone,
 } from '@/shared/ui'
+import { PersonalPath } from './personal-path'
 
 const TONES: Record<Qualification['status'], StatusTone> = {
   pending: 'draft',
@@ -99,7 +101,11 @@ export function CabinetQualificationPage() {
   const coach = role === 'coach'
   const data = useMyQualifications()
   const client = useQueryClient()
-  const [form, setForm] = useState({ open: false, key: 0 })
+  const [form, setForm] = useState<{
+    open: boolean
+    key: number
+    initial?: { itemId: number; resultId: number }
+  }>({ open: false, key: 0 })
   const withdraw = useMutation({
     mutationFn: qualificationApi.withdraw,
     onSuccess: () => {
@@ -113,7 +119,8 @@ export function CabinetQualificationPage() {
     (coach ? data.data?.submitted : data.data?.items)?.filter((item) => item.kind === copy.kind) ?? []
   const current = coach ? null : (items.find((item) => item.status === 'approved') ?? null)
   const pending = coach ? null : (items.find((item) => item.status === 'pending') ?? null)
-  const open = () => setForm((state) => ({ open: true, key: state.key + 1 }))
+  const open = (initial?: { itemId: number; resultId: number }) =>
+    setForm((state) => ({ open: true, key: state.key + 1, initial }))
   const action = coach
     ? 'Подать за спортсмена'
     : current
@@ -134,7 +141,7 @@ export function CabinetQualificationPage() {
         ]}
         actions={
           data.isSuccess && !pending ? (
-            <Button leftIcon={<IconPlus size={18} />} onClick={open}>
+            <Button leftIcon={<IconPlus size={18} />} onClick={() => open()}>
               {action}
             </Button>
           ) : undefined
@@ -156,13 +163,40 @@ export function CabinetQualificationPage() {
                 {role === 'judge' ? 'Действующая категория' : 'Действующий разряд'}
               </span>
               {current ? (
-                <>
-                  <span className="font-mono text-h3 font-medium">{current.item_name}</span>
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-                    <ValidityTag validUntil={current.valid_until} />
-                    {current.valid_from && <span>Присвоено {formatDate(current.valid_from)}</span>}
+                <div className="flex flex-wrap items-start justify-between gap-5">
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <span className="font-mono text-h3 font-medium">{current.item_name}</span>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+                      <ValidityTag validUntil={current.valid_until} />
+                      {current.valid_from && <span>Присвоено {formatDate(current.valid_from)}</span>}
+                      {current.order_number && (
+                        <span>
+                          Приказ {current.order_number}
+                          {current.order_date && ` от ${formatDate(current.order_date)}`}
+                        </span>
+                      )}
+                    </div>
+                    {current.basis_result && (
+                      <span className="text-sm text-muted">
+                        За {current.basis_result.place} место: {current.basis_result.contest_title}
+                      </span>
+                    )}
                   </div>
-                </>
+                  {current.token && (
+                    <Link
+                      to={routes.verifyQualification(current.token)}
+                      className="flex flex-col items-center gap-1.5 rounded-lg field-focus text-sm text-muted"
+                    >
+                      <span data-theme="light" className="rounded-md bg-paper p-2">
+                        <QrCode
+                          value={`${window.location.origin}${routes.verifyQualification(current.token)}`}
+                          size={96}
+                        />
+                      </span>
+                      Проверка по QR
+                    </Link>
+                  )}
+                </div>
               ) : (
                 <span className="text-h4 text-ink">{copy.empty}</span>
               )}
@@ -173,6 +207,8 @@ export function CabinetQualificationPage() {
               )}
             </section>
           )}
+
+          {role === 'athlete' && <PersonalPath onApply={open} />}
 
           {items.length ? (
             <section className="flex flex-col gap-3">
@@ -194,7 +230,7 @@ export function CabinetQualificationPage() {
               <EmptyState
                 title={copy.empty}
                 description="Выберите спортсмена из своих заявок и приложите протокол или приказ"
-                action={<Button onClick={open}>Подать за спортсмена</Button>}
+                action={<Button onClick={() => open()}>Подать за спортсмена</Button>}
               />
             )
           )}
@@ -207,6 +243,7 @@ export function CabinetQualificationPage() {
         kind={copy.kind}
         current={current}
         forAthlete={coach}
+        initial={form.initial}
         onClose={() => setForm((state) => ({ ...state, open: false }))}
       />
     </section>

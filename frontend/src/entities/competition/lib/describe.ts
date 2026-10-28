@@ -7,7 +7,7 @@ import type {
   VerificationStatus,
 } from '../model/types'
 
-/** Переходы по статусу — ровно таблица «Кнопки по статусу» из docs/009_front_competitions.md */
+/** Переходы по статусу — ровно таблица «Кнопки по статусу» */
 export const statusActions: Record<CompetitionStatus, CompetitionAction[]> = {
   draft: ['publish'],
   published: ['open-registration', 'start', 'unpublish'],

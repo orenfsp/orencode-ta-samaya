@@ -1,4 +1,4 @@
-/** Типы по контракту docs/001_api_map.md, раздел «Соревнования», и docs/007_tz_competitions.md */
+/** Типы по контракту API_DOCUMENTATION.md, раздел «Соревнования» */
 
 export type CompetitionStatus =
   | 'draft'
@@ -13,6 +13,8 @@ export type CompetitionStatus =
 export type VerificationStatus = 'not_requested' | 'pending' | 'verified' | 'rejected'
 
 export type ParticipationType = 'individual' | 'team'
+/** В какой календарный план включено: ЕКП Минспорта, план области или никуда */
+export type CalendarPlan = 'none' | 'ekp' | 'regional'
 
 /** Переходы жизненного цикла без тела запроса; отмена — отдельно, с причиной */
 export type CompetitionAction =
@@ -69,6 +71,9 @@ export interface Competition {
   registration_closes_at: string
   prize_fund_text: string | null
   prize_fund_amount: number | null
+  calendar_plan: CalendarPlan
+  calendar_plan_title: string
+  calendar_plan_number: string | null
   regulations: CompetitionFile | null
   photos: CompetitionFile[]
   status: CompetitionStatus
@@ -145,6 +150,8 @@ export interface CompetitionInput {
   registration_closes_at: string
   prize_fund_text: string | null
   prize_fund_amount: number | null
+  calendar_plan: CalendarPlan
+  calendar_plan_number: string | null
   regulations_file_id: string | null
   photo_file_ids: string[]
   /** Только федерация */

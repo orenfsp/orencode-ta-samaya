@@ -7,7 +7,7 @@ from audit.domain.audit import Audit
 from contests.domain.contests import Contest
 from contests.repositories.pg_contests import ContestQuery
 from core.database import UnitOfWork
-from core.errors import InvalidStatus, NotFound, ValidationFailed
+from core.errors import Forbidden, InvalidStatus, NotFound, ValidationFailed
 from events.repositories.pg_calendar import CalendarRepository
 from infrastructure.content.calendar_event import ORENBURG, CalendarEventModel, local_date
 from infrastructure.contests.contest import ContestModel
@@ -35,20 +35,27 @@ class Calendar:
         self._audit = audit
 
     async def feed(
-        self, start: date, end: date, kind: str | None, q: str, limit: int, offset: int
+        self, start: date, end: date, kind: str | None, q: str, limit: int, offset: int,
+        discipline_id: int | None = None, online: bool | None = None, mine: bool = False, user_id: UUID | None = None
     ) -> tuple[list[CalendarItem], int]:
         """Возвращает опубликованные события и/или соревнования за период с пагинацией."""
         if end < start or (end - start).days > 366 or start.year < 1900 or end.year > 2100:
             raise ValidationFailed(fields={"date_to": ["Выберите период до 367 дней, окончание не раньше начала"]})
+        if mine and user_id is None:
+            raise Forbidden()
         items: list[CalendarItem] = []
-        if kind in (None, "event"):
+        if kind in (None, "event") and not mine and discipline_id is None:
             before = datetime.combine(end + timedelta(days=1), time(), ORENBURG)
-            items.extend(await self._repository.published(before, datetime.combine(start, time(), ORENBURG), q))
+            items.extend(await self._repository.published(before, datetime.combine(start, time(), ORENBURG), q, online))
         if kind in (None, "contest"):
-            contests, _ = await self._contests.list_public(
-                ContestQuery(date_from=start, date_to=end, search=q or None), self.MAX_CONTESTS, 0
-            )
-            items.extend(contests)
+            query = ContestQuery(date_from=start, date_to=end, search=q or None, discipline_id=discipline_id, online=online, mine_user_id=user_id if mine else None)
+            contest_offset = 0
+            while True:
+                contests, total = await self._contests.list_public(query, self.MAX_CONTESTS, contest_offset)
+                items.extend(contests)
+                contest_offset += len(contests)
+                if not contests or contest_offset >= total:
+                    break
         items.sort(key=lambda item: (_starts(item), item.title))
         return items[offset : offset + limit], len(items)
 

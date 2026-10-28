@@ -36,6 +36,7 @@ class DraftOut(BaseModel):
     available: int
     main: list[CandidateOut]
     reserve: list[CandidateOut]
+    excluded: list[CandidateOut]
     current: CurrentOut | None
 
 
@@ -48,6 +49,8 @@ class SquadIn(BaseModel):
     order_number: str = Field(max_length=100)
     order_date: date
     order_file_id: UUID
+    min_rank_id: int | None = Field(default=None, ge=1)
+    exclude_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
 class ApprovedOut(BaseModel):

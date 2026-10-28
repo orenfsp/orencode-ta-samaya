@@ -17,11 +17,14 @@ import { fullName, useMe, type Role } from '@/entities/session'
 import { useRoleRequests } from '@/features/account-moderate'
 import { ModerationModal } from '@/features/application-moderate'
 import { JudgePanelModal } from '@/features/judge-panel'
+import { ReadinessModal } from '@/features/readiness-check'
 import {
   CompetitionActionsMenu,
+  PublishCompetitionButton,
   CompetitionFormModal,
   useCompetitionActions,
 } from '@/features/competition-manage'
+import { CalendarAside } from '@/widgets/calendar-aside'
 import { routes } from '@/shared/config'
 import {
   Button,
@@ -78,6 +81,7 @@ function CompetitionTile({
   onEdit,
   onApplications,
   onJudges,
+  onReadiness,
 }: {
   item: ManagedCompetition
   scope: CompetitionScope
@@ -87,6 +91,7 @@ function CompetitionTile({
   onEdit: () => void
   onApplications: () => void
   onJudges: () => void
+  onReadiness: () => void
 }) {
   const mark = verificationMark[item.verification_status]
   return (
@@ -112,6 +117,7 @@ function CompetitionTile({
       }
       footer={
         <div className="flex flex-wrap items-center gap-2 pt-1">
+          <PublishCompetitionButton item={item} actions={actions} />
           {canEdit(item.status) && (
             <Button variant="secondary" size="sm" onClick={onEdit}>
               Изменить
@@ -126,6 +132,11 @@ function CompetitionTile({
           {!['draft', 'completed', 'archived', 'cancelled'].includes(item.status) && (
             <Button variant="secondary" size="sm" onClick={onJudges}>
               Судьи
+            </Button>
+          )}
+          {item.status !== 'cancelled' && (
+            <Button variant="secondary" size="sm" onClick={onReadiness}>
+              Готовность
             </Button>
           )}
           <Button variant="text" size="sm" to={routes.competition(item.id)} className="mr-auto">
@@ -179,6 +190,11 @@ export function CabinetCompetitionsPage() {
     },
   )
 
+  const [ready, setReady] = useState<{ open: boolean; item: ManagedCompetition | null; key: number }>({
+    open: false,
+    item: null,
+    key: 0,
+  })
   const [judged, setJudged] = useState<{ open: boolean; item: ManagedCompetition | null; key: number }>({
     open: false,
     item: null,
@@ -297,74 +313,94 @@ export function CabinetCompetitionsPage() {
         )}
       </div>
 
-      {competitions.isPending ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {[1, 2, 3].map((id) => (
-            <Skeleton key={id} className="h-96 rounded-xl" />
-          ))}
-        </div>
-      ) : competitions.isError ? (
-        <ErrorState error={competitions.error} onRetry={() => competitions.refetch()} />
-      ) : !items.length ? (
-        <Card>
-          <EmptyState
-            title={filtered ? 'Ничего не найдено' : queue ? 'Очередь пуста' : 'Соревнований пока нет'}
-            description={
-              filtered
-                ? 'Измените поиск или фильтры'
-                : queue
-                  ? 'Запросы организаторов на верификацию появятся здесь'
-                  : 'Новое соревнование сохранится черновиком'
-            }
-            action={
-              filtered ? (
-                <Button variant="secondary" onClick={reset}>
-                  Сбросить фильтры
-                </Button>
-              ) : queue ? undefined : (
-                <Button leftIcon={<IconPlus size={18} />} onClick={() => open(null)}>
-                  Создать соревнование
-                </Button>
-              )
-            }
-          />
-        </Card>
-      ) : (
-        <div className="flex flex-col gap-6" aria-busy={competitions.isFetching}>
-          <div className="grid gap-4 md:grid-cols-2">
-            {items.map((item) => (
-              <CompetitionTile
-                key={item.id}
-                item={item}
-                scope={scope}
-                actions={actions}
-                waiting={
-                  withApplications.data?.items.find((entry) => entry.contest.id === item.id)?.counts
-                    .submitted ?? null
+      <div className={admin ? '' : 'grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]'}>
+        <div className="min-w-0">
+          {competitions.isPending ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {[1, 2, 3].map((id) => (
+                <Skeleton key={id} className="h-96 rounded-xl" />
+              ))}
+            </div>
+          ) : competitions.isError ? (
+            <ErrorState error={competitions.error} onRetry={() => competitions.refetch()} />
+          ) : !items.length ? (
+            <Card>
+              <EmptyState
+                title={filtered ? 'Ничего не найдено' : queue ? 'Очередь пуста' : 'Соревнований пока нет'}
+                description={
+                  filtered
+                    ? 'Измените поиск или фильтры'
+                    : queue
+                      ? 'Запросы организаторов на верификацию появятся здесь'
+                      : 'Новое соревнование сохранится черновиком'
                 }
-                onEdit={() => open(item)}
-                onApplications={() => setModerated((current) => ({ open: true, item, key: current.key + 1 }))}
-                onJudges={() => setJudged((current) => ({ open: true, item, key: current.key + 1 }))}
+                action={
+                  filtered ? (
+                    <Button variant="secondary" onClick={reset}>
+                      Сбросить фильтры
+                    </Button>
+                  ) : queue ? undefined : (
+                    <Button leftIcon={<IconPlus size={18} />} onClick={() => open(null)}>
+                      Создать соревнование
+                    </Button>
+                  )
+                }
               />
-            ))}
-          </div>
-          {items.length < total && (
-            <div className="flex flex-col items-center gap-2 pt-2">
-              <Button
-                variant="secondary"
-                loading={competitions.isFetchingNextPage}
-                onClick={() => void competitions.fetchNextPage()}
-              >
-                Показать ещё
-              </Button>
-              <span className="font-mono text-sm text-muted">
-                {items.length} из {total}
-              </span>
+            </Card>
+          ) : (
+            <div className="flex flex-col gap-6" aria-busy={competitions.isFetching}>
+              <div className="grid gap-4 md:grid-cols-2">
+                {items.map((item) => (
+                  <CompetitionTile
+                    key={item.id}
+                    item={item}
+                    scope={scope}
+                    actions={actions}
+                    waiting={
+                      withApplications.data?.items.find((entry) => entry.contest.id === item.id)?.counts
+                        .submitted ?? null
+                    }
+                    onEdit={() => open(item)}
+                    onApplications={() =>
+                      setModerated((current) => ({ open: true, item, key: current.key + 1 }))
+                    }
+                    onJudges={() => setJudged((current) => ({ open: true, item, key: current.key + 1 }))}
+                    onReadiness={() => setReady((current) => ({ open: true, item, key: current.key + 1 }))}
+                  />
+                ))}
+              </div>
+              {items.length < total && (
+                <div className="flex flex-col items-center gap-2 pt-2">
+                  <Button
+                    variant="secondary"
+                    loading={competitions.isFetchingNextPage}
+                    onClick={() => void competitions.fetchNextPage()}
+                  >
+                    Показать ещё
+                  </Button>
+                  <span className="font-mono text-sm text-muted">
+                    {items.length} из {total}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
-
+        {!admin && (
+          <CalendarAside
+            title="Мои ближайшие соревнования"
+            marks={items
+              .filter((item) => item.status !== 'cancelled')
+              .map((item) => ({
+                id: item.id,
+                title: item.title,
+                start: item.starts_on,
+                end: item.ends_on,
+                to: routes.competition(item.id),
+              }))}
+          />
+        )}
+      </div>
       <CompetitionFormModal
         key={form.key}
         open={form.open}
@@ -375,6 +411,14 @@ export function CabinetCompetitionsPage() {
         organizers={organizerOptions}
         onClose={() => setForm((current) => ({ ...current, open: false }))}
       />
+      {ready.item && (
+        <ReadinessModal
+          key={ready.key}
+          contest={ready.item}
+          open={ready.open}
+          onClose={() => setReady((current) => ({ ...current, open: false }))}
+        />
+      )}
       {judged.item && (
         <JudgePanelModal
           key={judged.key}

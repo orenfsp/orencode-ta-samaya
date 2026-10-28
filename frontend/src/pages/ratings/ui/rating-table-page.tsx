@@ -2,8 +2,9 @@ import { Link, Navigate, useSearchParams } from 'react-router'
 import { useDictionaryOptions } from '@/entities/dictionary'
 import {
   groupKindTitles,
-  RATING_WINDOW,
+  seasonCaption,
   useAthleteRatings,
+  useRatingRules,
   useRatingTable,
   type RatingGroupKind,
   type RatingLine,
@@ -60,6 +61,7 @@ function Podium({ lines, me, squad }: { lines: RatingLine[]; me?: string; squad:
               <span className="text-sm text-muted">баллов</span>
             </span>
           </div>
+          <span className="font-mono text-sm text-muted tabular-nums">{line.explain}</span>
           <div className="mt-auto flex flex-col gap-1">
             <Avatar
               name={line.athlete.full_name}
@@ -122,7 +124,14 @@ const columns = (me: string | undefined, squad: Set<string>): Column<RatingLine>
     header: 'Баллы',
     align: 'right',
     width: 'w-28',
-    cell: (line) => <span className="text-ink">{formatNumber(line.points)}</span>,
+    cell: (line) => (
+      <span className="flex flex-col items-end">
+        <span className="text-ink">{formatNumber(line.points)}</span>
+        {line.contests > 1 && (
+          <span className="font-mono text-xs text-muted tabular-nums">{line.explain}</span>
+        )}
+      </span>
+    ),
   },
 ]
 
@@ -139,12 +148,15 @@ export function RatingTablePage() {
   const groupId = value('group_id')
   const municipality = value('municipality_id')
   const search = value('q')
+  const minRank = value('min_rank')
   const page = Math.max(1, Number(value('page')) || 1)
   const { data: me } = useMe()
 
   const disciplines = useDictionaryOptions('disciplines')
   const groups = useDictionaryOptions(kind === 'age' ? 'age_groups' : 'academic_groups')
   const municipalities = useDictionaryOptions('municipalities')
+  const ranks = useDictionaryOptions('rank_types')
+  const rules = useRatingRules()
   const mine = useAthleteRatings(me?.id)
   const target =
     disciplineId && groupId
@@ -164,6 +176,7 @@ export function RatingTablePage() {
           group_kind: kind,
           group_id: groupId,
           municipality_id: municipality || undefined,
+          min_rank_id: minRank || undefined,
           search: search.trim() || undefined,
         }
       : null,
@@ -208,7 +221,9 @@ export function RatingTablePage() {
           { label: groupName ?? 'Группа' },
         ]}
         title={groupName ?? 'Рейтинг группы'}
-        description={[disciplineName, groupKindTitles[kind], RATING_WINDOW].filter(Boolean).join(' · ')}
+        description={[disciplineName, groupKindTitles[kind], seasonCaption(rules.data)]
+          .filter(Boolean)
+          .join(' · ')}
       />
 
       <Toolbar
@@ -235,6 +250,17 @@ export function RatingTablePage() {
             ]}
           />
         </Field>
+        <Field label="Разряд не ниже">
+          <SearchSelect
+            value={minRank}
+            disabled={ranks.isPending}
+            onChange={(next) => update({ min_rank: next })}
+            options={[
+              { value: '', label: 'Любой, и без разряда' },
+              ...(ranks.data ?? []).map((item) => ({ value: String(item.id), label: item.name })),
+            ]}
+          />
+        </Field>
       </Toolbar>
 
       {you && (
@@ -244,7 +270,7 @@ export function RatingTablePage() {
             Вы — {you.place} место из {you.total}
           </span>
           <span className="font-mono text-body text-ink tabular-nums">
-            {formatNumber(you.points)} баллов · {starts(you.contests)}
+            {formatNumber(you.points)} баллов · {you.explain}
           </span>
         </div>
       )}
@@ -263,9 +289,13 @@ export function RatingTablePage() {
       ) : !lines.length && !search.trim() ? (
         <div className="card">
           <EmptyState
-            title="В этой группе пока нет мест"
+            title={minRank ? 'Нет спортсменов с таким разрядом' : 'В этой группе пока нет мест'}
             action={
-              municipality ? (
+              minRank ? (
+                <Button variant="secondary" onClick={() => update({ min_rank: '' })}>
+                  Любой разряд
+                </Button>
+              ) : municipality ? (
                 <Button variant="secondary" onClick={() => update({ municipality_id: '' })}>
                   Вся область
                 </Button>

@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useDictionaryOptions } from '@/entities/dictionary'
 import { useMe } from '@/entities/session'
@@ -39,6 +39,7 @@ export function QualificationSubmitModal({
   kind,
   current,
   forAthlete,
+  initial,
   onClose,
 }: {
   open: boolean
@@ -46,14 +47,23 @@ export function QualificationSubmitModal({
   /** Действующая ступень: ниже и на её уровне подать нельзя */
   current: Qualification | null
   forAthlete?: boolean
+  /** Подсказка ЕВСК: ступень и место из протокола уже выбраны */
+  initial?: { itemId?: number; resultId?: number; userId?: string }
   onClose: () => void
 }) {
   const client = useQueryClient()
   const options = useDictionaryOptions(kind === 'rank' ? 'rank_types' : 'judge_categories')
   const { data: me } = useMe()
   const athletes = useCoachAthletes(Boolean(forAthlete) && open)
-  const [athlete, setAthlete] = useState<string | null>(null)
-  const [item, setItem] = useState('')
+  const [athlete, setAthlete] = useState<string | null>(initial?.userId ?? null)
+  const [item, setItem] = useState(initial?.itemId ? String(initial.itemId) : '')
+  const [result, setResult] = useState(initial?.resultId ? String(initial.resultId) : '')
+  const results = useQuery({
+    queryKey: ['qualifications', 'results', athlete ?? 'me'],
+    queryFn: ({ signal }) =>
+      qualificationApi.results(forAthlete ? (athlete ?? undefined) : undefined, signal),
+    enabled: open && kind === 'rank' && (!forAthlete || Boolean(athlete)),
+  })
   const [file, setFile] = useState<{ id: string; name: string } | null>(null)
   const [basis, setBasis] = useState('')
   const [missing, setMissing] = useState<Record<string, string>>({})
@@ -70,6 +80,7 @@ export function QualificationSubmitModal({
         item_id: Number(item),
         document_file_id: file!.id,
         basis: basis.trim() || undefined,
+        contest_result_id: result ? Number(result) : undefined,
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: qualificationKeys.all })
@@ -173,6 +184,25 @@ export function QualificationSubmitModal({
             </span>
           )}
         </div>
+        {kind === 'rank' && (
+          <Field
+            label="Место из протокола"
+            hint="По нему видно, за что получен разряд. Для соревнований вне платформы оставьте пустым"
+            error={fieldError('contest_result_id')}
+          >
+            <Select
+              value={result}
+              onChange={(event) => setResult(event.target.value)}
+              placeholder={
+                results.isPending && results.fetchStatus !== 'idle' ? 'Загружаем…' : 'Без протокола платформы'
+              }
+              options={(results.data ?? []).map((row) => ({
+                value: String(row.id),
+                label: `${row.place} место · ${row.contest_title}`,
+              }))}
+            />
+          </Field>
+        )}
         <Field label="Основание" hint={TITLES[kind].basis} error={fieldError('basis')}>
           <Textarea
             value={basis}

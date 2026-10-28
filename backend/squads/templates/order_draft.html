@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 20mm; @bottom-center { content: "Проект приказа · стр. " counter(page); font: 8pt Roboto; color: #6b6c72; } }
+  body { font: 11pt/1.45 Roboto, sans-serif; color: #1b1c21; }
+  header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #1b1c21; padding-bottom: 10px; }
+  header img { height: 34px; }
+  header div { font-size: 9pt; color: #45464c; }
+  .draft { margin-top: 10px; font-size: 9pt; letter-spacing: .08em; text-transform: uppercase; color: #b3261e; }
+  h1 { font: 500 15pt "JetBrains Mono", monospace; margin: 18px 0 4px; text-align: center; }
+  .meta { text-align: center; color: #45464c; margin-bottom: 18px; }
+  p { margin: 8px 0; text-align: justify; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 10pt; }
+  th, td { border: 1px solid #c8c9ca; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #ededed; font-weight: 500; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  h2 { font: 500 11.5pt Roboto; margin: 16px 0 4px; }
+  .sign { margin-top: 36px; display: flex; justify-content: space-between; }
+  .sign span { display: inline-block; min-width: 180px; border-bottom: 1px solid #1b1c21; }
+</style>
+</head>
+<body>
+  <header>
+    <img src="fsp-logo.svg" alt="">
+    <div>Региональное отделение Федерации спортивного программирования<br>Оренбургской области</div>
+  </header>
+  <div class="draft">Проект · не подписан</div>
+  <h1>ПРИКАЗ</h1>
+  <div class="meta">№ {{ number or "____" }} от {{ order_date or "«___» ____________ 20__ г." }} · г. Оренбург</div>
+  <p><b>Об утверждении состава спортивной сборной команды Оренбургской области по виду спорта «спортивное программирование»</b></p>
+  <p>В соответствии с результатами рейтинга спортсменов региона по дисциплине «{{ discipline }}» в группе «{{ group }}» за сезон с {{ since }} по {{ until }}{% if min_rank %}, с учётом требования к спортивному разряду не ниже «{{ min_rank }}»{% endif %},</p>
+  <p><b>ПРИКАЗЫВАЮ:</b></p>
+  <p>1. Утвердить основной состав спортивной сборной команды Оренбургской области ({{ main|length }} чел.):</p>
+  <table>
+    <tr><th>№</th><th>ФИО спортсмена</th><th>Дата рождения</th><th>Муниципалитет</th><th>Баллы рейтинга</th></tr>
+    {% for row in main %}<tr><td class="num">{{ loop.index }}</td><td>{{ row.name }}</td><td>{{ row.birth }}</td><td>{{ row.municipality }}</td><td class="num">{{ row.points }}</td></tr>{% endfor %}
+  </table>
+  {% if reserve %}
+  <p>2. Утвердить резервный состав ({{ reserve|length }} чел.):</p>
+  <table>
+    <tr><th>№</th><th>ФИО спортсмена</th><th>Дата рождения</th><th>Муниципалитет</th><th>Баллы рейтинга</th></tr>
+    {% for row in reserve %}<tr><td class="num">{{ loop.index }}</td><td>{{ row.name }}</td><td>{{ row.birth }}</td><td>{{ row.municipality }}</td><td class="num">{{ row.points }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
+  {% if excluded %}
+  <h2>Исключены из состава решением федерации</h2>
+  <table>
+    <tr><th>ФИО спортсмена</th><th>Баллы рейтинга</th></tr>
+    {% for row in excluded %}<tr><td>{{ row.name }}</td><td class="num">{{ row.points }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
+  <p>{{ 3 if reserve else 2 }}. Контроль за исполнением приказа оставляю за собой.</p>
+  <div class="sign"><div>Председатель регионального отделения ФСП</div><div><span></span></div></div>
+</body>
+</html>

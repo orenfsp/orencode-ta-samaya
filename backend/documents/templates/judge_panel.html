@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Справка о составе судейской коллегии</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: "Roboto", sans-serif; color: #1B1C21; }
+  .page { position: relative; width: 210mm; height: 297mm; overflow: hidden; page-break-after: always; background: #FFFFFF; }
+  .page:last-child { page-break-after: auto; }
+
+  .band { position: absolute; left: 0; top: 0; right: 0; height: 5mm; background: #402FFF; }
+  .mark { position: absolute; right: -30mm; bottom: -26mm; width: 100mm; opacity: 0.06; }
+
+  .head { position: absolute; left: 20mm; right: 20mm; top: 17mm; height: 30mm; border-bottom: 0.3mm solid #C8C9CA; }
+  .logo { position: absolute; left: 0; top: 0; height: 11mm; }
+  .org { position: absolute; left: 0; top: 14mm; width: 110mm; font-size: 9pt; color: #5B5C62; line-height: 1.4; }
+  .qr { position: absolute; right: 0; top: 0; width: 24mm; height: 24mm; }
+  .qr svg { width: 24mm; height: 24mm; }
+
+  .main { position: absolute; left: 20mm; right: 20mm; top: 58mm; }
+  .kind { font-family: "JetBrains Mono", monospace; font-size: 10pt; color: #5B5C62; }
+  .title { margin-top: 2mm; font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 20pt; line-height: 1.15; }
+  .body { margin-top: 8mm; font-size: 11.5pt; line-height: 1.55; }
+  .body p + p { margin-top: 3mm; }
+  table { margin-top: 6mm; width: 100%; border-collapse: collapse; font-size: 10pt; }
+  th { text-align: left; font-weight: 500; color: #5B5C62; padding: 2mm 2mm 2mm 0; border-bottom: 0.4mm solid #1B1C21; }
+  td { padding: 2mm 2mm 2mm 0; border-bottom: 0.3mm solid #EDEDED; vertical-align: top; }
+  td.n { width: 8mm; font-family: "JetBrains Mono", monospace; color: #5B5C62; }
+  td.name { font-weight: 500; }
+  td.until { width: 26mm; font-family: "JetBrains Mono", monospace; }
+  .meta { margin-top: 6mm; font-size: 10pt; color: #5B5C62; line-height: 1.5; }
+
+  .foot { position: absolute; left: 20mm; right: 20mm; bottom: 22mm; font-size: 10.5pt; }
+  .sign .position { color: #5B5C62; }
+  .sign .row { margin-top: 10mm; border-top: 0.3mm solid #C8C9CA; padding-top: 1.5mm; text-align: right; font-weight: 500; }
+  .check { margin-top: 10mm; font-size: 9pt; color: #5B5C62; line-height: 1.5; }
+  .check .mono { font-family: "JetBrains Mono", monospace; color: #1B1C21; }
+</style>
+</head>
+<body>
+{% for page in pages %}
+{% set form = page.form %}{% set who = page.recipient %}{% set contest = page.contest %}
+<section class="page">
+  <div class="band"></div>
+  <img class="mark" src="fsp-mark-light.svg" alt="">
+
+  <div class="head">
+    <img class="logo" src="fsp-logo.svg" alt="ФСП">
+    <div class="org">Региональное отделение Федерации спортивного программирования Оренбургской области</div>
+    <div class="qr">{{ page.qr|safe }}</div>
+  </div>
+
+  <div class="main">
+    <div class="kind">Справка № {{ page.number }} · {{ form.issued_on|ru_date }}</div>
+    <div class="title">{{ form.title }}</div>
+
+    <div class="body">
+      <p>Настоящая справка подтверждает состав судейской коллегии соревнования «{{ contest.title }}», {{ contest.dates }}{% if contest.place %}, {{ contest.place }}{% endif %}. Категории указаны действующими на дату начала соревнования.</p>
+      {% if form.text %}<p>{{ form.text }}</p>{% endif %}
+    </div>
+
+    <table>
+      <tr><th>№</th><th>Фамилия, имя, отчество</th><th>Должность</th><th>Судейская категория</th><th>Действует до</th></tr>
+      {% for judge in who.panel %}
+      <tr>
+        <td class="n">{{ loop.index }}</td>
+        <td class="name">{{ judge.name }}</td>
+        <td>{{ judge.position }}</td>
+        <td>{{ judge.category or 'Нет действующей' }}</td>
+        <td class="until">{{ judge.valid_until|ru_date if judge.valid_until else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <div class="meta">Дисциплина: {{ contest.discipline }}. Организатор: {{ contest.organizer }}. Судей в коллегии: {{ who.panel|length }}.</div>
+  </div>
+
+  <div class="foot">
+    <div class="sign">
+      {% if form.signer_position %}<div class="position">{{ form.signer_position }}</div>{% endif %}
+      <div class="row">{{ form.signer_name or '' }}</div>
+    </div>
+    <div class="check">Подлинность справки проверяется по QR-коду или на странице<br><span class="mono">{{ page.url }}</span></div>
+  </div>
+</section>
+{% endfor %}
+</body>
+</html>

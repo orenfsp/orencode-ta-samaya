@@ -8,8 +8,10 @@ from audit.domain.audit import Audit
 from contests.repositories.pg_contests import ContestRepository
 from core.database import DbSession, UnitOfWork
 from documents.dependencies import get_documents
+from evsk.dependencies import get_evsk
 from files.dependencies import object_storage
 from notifications.dependencies import NotificationsDep
+from results.domain.protocol_import import ProtocolImport
 from results.domain.results import Results
 from results.repositories.pg_results import ResultRepository
 
@@ -29,7 +31,16 @@ def get_results(
         notifications=notifications,
         documents=get_documents(db, audit),
         storage=object_storage,
+        evsk=get_evsk(db, audit),
     )
 
 
 ResultsDep = Annotated[Results, Depends(get_results)]
+
+
+def get_protocol_import(results: ResultsDep) -> ProtocolImport:
+    """Собирает импорт протокола поверх домена результатов."""
+    return ProtocolImport(results)
+
+
+ProtocolImportDep = Annotated[ProtocolImport, Depends(get_protocol_import)]

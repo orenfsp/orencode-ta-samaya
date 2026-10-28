@@ -1,4 +1,7 @@
 import calendar
+import hashlib
+import hmac
+import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -22,6 +25,8 @@ from infrastructure.enums import (
     Role,
     RoleStatus,
 )
+from infrastructure.contests.contest import ContestModel
+from infrastructure.participation.contest_result import ContestResultModel
 from infrastructure.qualifications.qualification import QualificationModel
 from infrastructure.account.user import UserModel
 from notifications.domain.notifications import Notifications
@@ -75,6 +80,15 @@ def link_for(kind: QualificationKind, own: bool = True) -> str:
     return "/cabinet/athlete/rank" if own else "/cabinet/coach/ranks"
 
 
+def signature(item: QualificationModel, secret: bytes) -> str:
+    """Считает HMAC-подпись присвоенной квалификации для QR-проверки."""
+    payload = "|".join(str(value) for value in (
+        item.token, item.id, item.user_id, item.kind.value, item.item_id, item.valid_from, item.valid_until,
+        item.order_number,
+    ))
+    return hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class Mine:
     items: Sequence[QualificationModel]
@@ -93,10 +107,12 @@ class Qualifications:
         files: Files,
         audit: Audit,
         notifications: Notifications,
+        secret: str,
     ) -> None:
         """Сохраняет зависимости."""
         self._uow, self._repository, self._users, self._dictionary = uow, repository, users, dictionary
         self._files, self._audit, self._notifications = files, audit, notifications
+        self._secret = secret.encode()
 
     async def submit(
         self,
@@ -108,6 +124,7 @@ class Qualifications:
         file_id: UUID,
         basis: str | None,
         ip: str | None,
+        result_id: int | None = None,
     ) -> QualificationModel:
         """Подаёт заявку на разряд или категорию, проверяя право подавать, возраст и отсутствие дублей."""
         target = user_id or actor_id
@@ -132,6 +149,9 @@ class Qualifications:
         current = await self._repository.of_user(target, kind, S.APPROVED)
         if current and (current.valid_until is None or current.valid_until >= today()) and item_id >= current.item_id:
             raise NotHigher()
+        if result_id is not None:
+            if kind != K.RANK or not await self._repository.own_result(result_id, target):
+                raise ValidationFailed(fields={"contest_result_id": ["Выберите своё место из истории выступлений"]})
         files, error = await self._files.usable([file_id], actor_id, Role.FEDERATION in actor_roles, Files.DOCUMENT_TYPES)
         if error:
             message = "Загрузите документ в PDF или DOCX" if error == "type" else error
@@ -146,6 +166,7 @@ class Qualifications:
                 judge_category_id=item_id if kind == K.JUDGE_CATEGORY else None,
                 rank_type_id=item_id if kind == K.RANK else None,
                 basis=(basis or "").strip() or None,
+                contest_result_id=result_id,
             )
         )
         await self._audit.write(
@@ -168,9 +189,13 @@ class Qualifications:
         await self._uow.commit()
         return item
 
-    async def approve(self, actor_id: UUID, qualification_id: UUID, ip: str | None) -> QualificationModel:
-        """Одобряет заявку, заменяя прежний действующий разряд или категорию и выставляя срок действия."""
+    async def approve(self, actor_id: UUID, qualification_id: UUID, order_number: str, order_date: date, ip: str | None) -> QualificationModel:
+        """Одобряет заявку по приказу: заменяет прежнюю ступень, выставляет срок, токен и подпись для QR-проверки."""
         item = await self._pending(qualification_id)
+        if not order_number.strip():
+            raise ValidationFailed(fields={"order_number": ["Укажите номер приказа"]})
+        if order_date > today():
+            raise ValidationFailed(fields={"order_date": ["Дата приказа из будущего"]})
         expires = self.valid_until(item, today())
         if expires is not None and expires <= today():
             raise ValidationFailed(fields={"item_id": ["Срок разряда уже истёк: спортсмен вышел из возраста юношеских разрядов"]})
@@ -182,10 +207,13 @@ class Qualifications:
         item.status, item.decided_by, item.decided_at = S.APPROVED, actor_id, datetime.now(UTC)
         end = self.valid_until(item, start)
         item.valid_from, item.valid_until = start, end
+        item.order_number, item.order_date = order_number.strip(), order_date
+        item.token = secrets.token_urlsafe(12)
+        item.signature = self.sign(item)
         until = f"{end:%d.%m.%Y}" if end else None
         await self._audit.write(
             AuditAction.QUALIFICATION_APPROVE, actor_id, "qualification", item.id,
-            {"item": item.item_name, "valid_until": end.isoformat() if end else None}, ip,
+            {"item": item.item_name, "valid_until": end.isoformat() if end else None, "order": item.order_number}, ip,
         )
         await self._notifications.qualification_decided(
             {item.user_id, item.submitted_by}, actor_id, T.QUALIFICATION_APPROVED, item.item_name, until, None,
@@ -208,6 +236,17 @@ class Qualifications:
         )
         await self._uow.commit()
         return item
+
+    def sign(self, item: QualificationModel) -> str:
+        """Подписывает квалификацию секретом приложения."""
+        return signature(item, self._secret)
+
+    async def verify(self, token: str) -> tuple[QualificationModel, bool]:
+        """Находит квалификацию по токену и проверяет подпись и срок; бросает NotFound."""
+        item = await self._repository.by_token(token)
+        if item is None or item.signature is None:
+            raise NotFound("Запись не найдена")
+        return item, hmac.compare_digest(item.signature, self.sign(item))
 
     @staticmethod
     def valid_until(item: QualificationModel, start: date) -> date | None:
@@ -237,6 +276,17 @@ class Qualifications:
     ) -> Sequence[QualificationModel]:
         """Возвращает заявки на рассмотрение, отфильтрованные по виду и статусу."""
         return await self._repository.queue(kind, status)
+
+    async def results(
+        self, actor_id: UUID, roles: frozenset[Role], user_id: UUID | None
+    ) -> list[tuple[ContestResultModel, ContestModel]]:
+        """Возвращает места человека для основания разряда: свои или подопечного у тренера."""
+        target = user_id or actor_id
+        if target != actor_id:
+            await self._check_submitter(actor_id, roles, K.RANK, target)
+        rows = await self._repository.results(target)
+        contests = await self._repository.contests([row.contest_id for row in rows])
+        return [(row, contests[row.contest_id]) for row in rows if row.contest_id in contests]
 
     async def athletes(self, coach_id: UUID) -> Sequence[UserModel]:
         """Возвращает спортсменов, за которых тренер может подавать разряды."""

@@ -99,7 +99,7 @@ export function AthleteRatings({ userId, emptyAction }: { userId: string; emptyA
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h2 className="text-h3 font-medium">{first.discipline.name}</h2>
               <span className="font-mono text-sm text-muted tabular-nums">
-                {formatNumber(first.points)} {plural(first.points, ['балл', 'балла', 'баллов'])}
+                {first.explain} {plural(first.points, ['балл', 'балла', 'баллов'])}
               </span>
             </div>
             <ul className="divide-y divide-line-soft overflow-hidden card">

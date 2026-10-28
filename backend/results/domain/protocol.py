@@ -1,17 +1,26 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from io import BytesIO
+from zoneinfo import ZoneInfo
+from uuid import UUID
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, Side
-
+from core import xlsx
+from core.xlsx import Column
+from infrastructure.account.user import UserModel
 from infrastructure.contests.contest import ContestModel
+from infrastructure.enums import (
+    CALENDAR_PLAN_TITLES,
+    CONTEST_STATUS_TITLES,
+    PARTICIPATION_TYPE_TITLES,
+    VERIFICATION_STATUS_TITLES,
+    ApplicationCreator,
+    CalendarPlan,
+)
 from infrastructure.participation.contest_application import ContestApplicationModel
 from infrastructure.participation.contest_result import ContestResultModel
-from infrastructure.enums import PARTICIPATION_TYPE_TITLES, VERIFICATION_STATUS_TITLES, ParticipationType
 from infrastructure.qualifications.judge_assignment import JudgeAssignmentModel
-from infrastructure.account.user import UserModel
+
+ZONE = ZoneInfo("Asia/Yekaterinburg")
 
 
 def _name(user: UserModel) -> str:
@@ -36,10 +45,21 @@ class JudgeFile:
 
 
 class Protocol:
-    """Формирует итоговый протокол соревнования в виде книги Excel."""
+    """Итоговый протокол соревнования книгой Excel: места по каждому участнику, сведения, коллегия, документы, кандидаты на разряд."""
 
-    HEADERS = ("Место", "Участник / команда", "Состав", "Баллы")
-    WIDTHS = (10, 42, 60, 10)
+    RESULTS = (
+        Column("Место", "center", 16),
+        Column("Участник", width=34),
+        Column("Команда", width=24),
+        Column("Капитан", "center", 9),
+        Column("Дата рождения", "center", 13),
+        Column("Возрастная группа", width=16),
+        Column("Академическая группа", width=18),
+        Column("Муниципалитет", width=20),
+        Column("Организация", "wrap", 30),
+        Column("Тренер", width=26),
+        Column("Баллы", "int", 8),
+    )
 
     @classmethod
     def build(
@@ -49,77 +69,138 @@ class Protocol:
         results: Sequence[ContestResultModel],
         judges: Sequence[JudgeAssignmentModel] = (),
         files: Sequence[JudgeFile] = (),
+        ranks: Sequence[tuple[str, int, str]] = (),
+        organizations: dict[UUID, str] | None = None,
+        categories: dict[UUID, str] | None = None,
     ) -> bytes:
-        """Строит xlsx-протокол соревнования: сведения, таблицу мест и судейскую коллегию."""
-        book = Workbook()
-        sheet = book.active
-        assert sheet is not None
-        sheet.title = "Протокол"
-        sheet.append(["Протокол соревнования"])
-        sheet["A1"].font = Font(bold=True, size=14)
-        sheet.append([contest.title])
-        sheet["A2"].font = Font(bold=True)
+        """Строит xlsx-протокол: лист мест, лист сведений, коллегия с документами и кандидаты на разряд."""
+        book = xlsx.book()
         place = ", ".join(part for part in (contest.municipality.name if contest.municipality else None, contest.venue) if part)
-        facts = [
-            ("Дисциплина", contest.discipline.name),
-            ("Тип и уровень", f"{contest.contest_type.name}, {contest.contest_level.name}"),
-            ("Формат", contest.contest_format.name),
-            ("Даты проведения", _dates(contest.starts_on, contest.ends_on)),
-            ("Место проведения", place or "—"),
-            ("Участие", PARTICIPATION_TYPE_TITLES[contest.participation_type]),
-            ("Организатор", _name(contest.organizer)),
-            ("Верификация", VERIFICATION_STATUS_TITLES[contest.verification_status]),
-        ]
-        sheet.append([])
-        for label, value in facts:
-            sheet.append([label, value])
-            sheet.cell(sheet.max_row, 1).font = Font(bold=True)
-        sheet.append([])
-        sheet.append(list(cls.HEADERS))
-        header_row = sheet.max_row
-        thin = Side(style="thin", color="C8C9CA")
-        for column in range(1, len(cls.HEADERS) + 1):
-            cell = sheet.cell(header_row, column)
-            cell.font = Font(bold=True)
-            cell.border = Border(bottom=thin)
-        team = contest.participation_type == ParticipationType.TEAM
-        by_application: dict[int, ContestResultModel] = {}
-        for result in results:
-            by_application.setdefault(result.application_id, result)
-        rows = []
+        sheet = xlsx.sheet(book, "Протокол")
+        row = xlsx.header(
+            sheet,
+            f"Протокол: {contest.title}",
+            [
+                ("Дисциплина", contest.discipline.name),
+                ("Даты проведения", _dates(contest.starts_on, contest.ends_on)),
+                ("Место проведения", place or "—"),
+                ("Верификация", VERIFICATION_STATUS_TITLES[contest.verification_status]),
+            ],
+        )
+        by_user = {item.user_id: item for item in results}
+        rows: list[tuple[tuple[int, int, str], list[object]]] = []
         for entry in entries:
-            result = by_application.get(entry.id)
-            members = [member.user for member in entry.members if member.is_active]
-            title = entry.team_name or (_name(members[0]) if members else "—")
-            roster = ", ".join(_name(user) for user in members) if team else ""
-            if result is None:
-                rows.append((2, 0, ["", title, roster, ""]))
-            elif result.place is None:
-                rows.append((1, 0, ["Дисквалификация", title, roster, 0]))
-            else:
-                rows.append((0, result.place, [result.place, title, roster, result.points]))
-        for _, _, values in sorted(rows, key=lambda row: (row[0], row[1])):
-            sheet.append(values)
-            for column in (1, 4):
-                sheet.cell(sheet.max_row, column).alignment = Alignment(horizontal="center")
-            sheet.cell(sheet.max_row, 3).alignment = Alignment(wrap_text=True, vertical="top")
-        if judges:
-            sheet.append([])
-            sheet.append(["Судейская коллегия"])
-            sheet.cell(sheet.max_row, 1).font = Font(bold=True)
-            for assignment in judges:
-                sheet.append(["", assignment.position.name, _name(assignment.judge)])
-        if files:
-            sheet.append([])
-            sheet.append(["Документы судейской коллегии"])
-            sheet.cell(sheet.max_row, 1).font = Font(bold=True)
-            for item in files:
-                judge = _name(item.judge) + (" (снят)" if item.removed else "")
-                note = " · ".join(part for part in (item.position, item.comment) if part)
-                sheet.append([item.kind, judge, note, f'=HYPERLINK("{item.url}", "{item.name.replace(chr(34), "")}")'])
-                sheet.cell(sheet.max_row, 4).font = Font(color="402FFF", underline="single")
-        for index, width in enumerate(cls.WIDTHS, start=1):
-            sheet.column_dimensions[chr(64 + index)].width = width
-        buffer = BytesIO()
-        book.save(buffer)
-        return buffer.getvalue()
+            coach = _name(entry.creator) if entry.created_as == ApplicationCreator.COACH else ""
+            for member in (item for item in entry.members if item.is_active):
+                result = by_user.get(member.user_id)
+                user = member.user
+                place_value: object = "" if result is None else "Дисквалификация" if result.place is None else result.place
+                group, rank = (2, 0) if result is None else (1, 0) if result.place is None else (0, result.place)
+                rows.append(
+                    (
+                        (group, rank, entry.team_name or _name(user)),
+                        [
+                            place_value,
+                            _name(user),
+                            entry.team_name or "",
+                            "да" if member.is_captain and entry.team_name else "",
+                            user.birth_date,
+                            member.age_group.name if member.age_group else "",
+                            member.academic_group.name if member.academic_group else "",
+                            user.municipality.name if user.municipality else "",
+                            (organizations or {}).get(user.id, ""),
+                            coach,
+                            result.points if result else "",
+                        ],
+                    )
+                )
+        ordered = [values for _, values in sorted(rows, key=lambda item: item[0])]
+        team = any(entry.team_name for entry in entries)
+        keep = [index for index in range(len(cls.RESULTS)) if team or index not in (2, 3)]
+        ordered = [[values[index] for index in keep] for values in ordered]
+        ordered = [[index, *values] for index, values in enumerate(ordered, start=1)]
+        placed = sum(1 for values in ordered if isinstance(values[1], int))
+        row = xlsx.table(
+            sheet,
+            row,
+            [Column("№", "int", 6), *[cls.RESULTS[index] for index in keep]],
+            ordered,
+            total=["Итого", "", f"{len(ordered)} участников, с местом: {placed}", *[""] * (len(keep) - 2)],
+        )
+        chief = next((item for item in judges if "главн" in item.position.name.lower() and "судь" in item.position.name.lower()), None)
+        secretary = next((item for item in judges if "секретар" in item.position.name.lower()), None)
+        xlsx.signatures(
+            sheet,
+            row,
+            [
+                ("Главный судья", _name(chief.judge) if chief else ""),
+                ("Главный секретарь", _name(secretary.judge) if secretary else ""),
+            ],
+        )
+
+        info = xlsx.sheet(book, "Соревнование")
+        scale = ", ".join(f"{item['place']} место — {item['points']}" for item in contest.rating_points or [])
+        prize = " · ".join(
+            part for part in (contest.prize_fund_text, f"{contest.prize_fund_amount:,} ₽".replace(",", " ") if contest.prize_fund_amount else None) if part
+        )
+        plan = CALENDAR_PLAN_TITLES[contest.calendar_plan] + (
+            f", № {contest.calendar_plan_number}" if contest.calendar_plan != CalendarPlan.NONE and contest.calendar_plan_number else ""
+        )
+        facts = [
+            ("Название", contest.title),
+            ("Описание", contest.description or "—"),
+            ("Дисциплина", contest.discipline.name),
+            ("Тип", contest.contest_type.name),
+            ("Уровень", contest.contest_level.name),
+            ("Календарный план", plan),
+            ("Формат", contest.contest_format.name),
+            ("Участие", PARTICIPATION_TYPE_TITLES[contest.participation_type]),
+            ("Размер команды", f"{contest.team_size_min}–{contest.team_size_max}" if contest.team_size_max else "—"),
+            ("Возрастные группы", ", ".join(item.name for item in contest.age_groups) or "без ограничений"),
+            ("Академические группы", ", ".join(item.name for item in contest.academic_groups) or "без ограничений"),
+            ("Начало", contest.starts_on),
+            ("Окончание", contest.ends_on),
+            ("Приём заявок", f"{contest.registration_opens_at.astimezone(ZONE):%d.%m.%Y %H:%M} — {contest.registration_closes_at.astimezone(ZONE):%d.%m.%Y %H:%M}"),
+            ("Место проведения", place or "—"),
+            ("Организатор", _name(contest.organizer)),
+            ("Почта организатора", contest.organizer.email),
+            ("Положение", contest.regulations.original_name if contest.regulations else "—"),
+            ("Причина отмены", contest.cancel_reason or "—"),
+            ("Комментарий верификации", contest.verification_reason or "—"),
+            ("Статус", CONTEST_STATUS_TITLES[contest.status]),
+            ("Верификация", VERIFICATION_STATUS_TITLES[contest.verification_status]),
+            ("Баллы за места", scale or "—"),
+            ("Призовой фонд", prize or "—"),
+            ("Заявок одобрено", len(entries)),
+        ]
+        row = xlsx.header(info, "Сведения о соревновании")
+        xlsx.table(info, row, [Column("Поле", width=26), Column("Значение", "wrap", 90)], [list(item) for item in facts], freeze=True)
+
+        panel = xlsx.sheet(book, "Судейская коллегия")
+        row = xlsx.header(panel, "Судейская коллегия", [("Соревнование", contest.title)])
+        row = xlsx.table(
+            panel,
+            row,
+            [Column("№", "center", 5), Column("Должность", width=28), Column("Судья", width=34), Column("Категория", "wrap", 30), Column("Муниципалитет", width=22)],
+            [
+                [index, item.position.name, _name(item.judge), (categories or {}).get(item.judge_id, "—"), item.judge.municipality.name if item.judge.municipality else ""]
+                for index, item in enumerate(judges, start=1)
+            ],
+            empty="Коллегия не назначена",
+        )
+        documents = xlsx.sheet(book, "Документы судей")
+        row = xlsx.header(documents, "Документы судейской коллегии", [("Соревнование", contest.title)])
+        head = row
+        xlsx.table(documents, row, [Column("Вид", width=18), Column("Судья", width=34), Column("Должность и комментарий", "wrap", 40), Column("Файл", width=36)], [[item.kind, _name(item.judge) + (" (снят)" if item.removed else ""), " · ".join(part for part in (item.position, item.comment) if part), item.name] for item in files], empty="Документов нет")
+        for offset, item in enumerate(files, start=1):
+            xlsx.link(documents, head + offset, 4, item.url, item.name)
+
+        candidates = xlsx.sheet(book, "Кандидаты на разряд")
+        row = xlsx.header(candidates, "Могут претендовать на разряд по ЕВСК", [("Соревнование", contest.title)])
+        xlsx.table(
+            candidates,
+            row,
+            [Column("Место", "center", 8), Column("Спортсмен", width=34), Column("Разряд", width=36)],
+            [[place_value, name, rank] for name, place_value, rank in ranks],
+        )
+        return xlsx.save(book)

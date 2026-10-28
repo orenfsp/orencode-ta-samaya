@@ -1,9 +1,18 @@
 import type { CompetitionScope } from '@/entities/competition'
 
 /** Кем человек был на соревновании */
-export type DocumentRole = 'athlete' | 'coach' | 'judge'
+export type DocumentRole = 'athlete' | 'coach' | 'judge' | 'organizer'
 
-export type DocumentKind = 'certificate' | 'diploma' | 'gramota' | 'thanks' | 'judge_thanks' | 'reference'
+export type DocumentKind =
+  'certificate' | 'diploma' | 'gramota' | 'thanks' | 'judge_thanks' | 'reference' | 'judge_panel'
+
+/** Строка справки о составе судейской коллегии: категория — действующая на дату старта */
+export interface PanelLine {
+  name: string
+  position: string
+  category: string | null
+  valid_until: string | null
+}
 export type DocumentScope = CompetitionScope
 
 /** Поля, которые вводит человек. Остальное — ФИО, команда, место, подопечные, QR — подставляет сервер */
@@ -70,6 +79,8 @@ export interface VerifiedDocument {
   athletes: string[]
   /** Судья: должность в коллегии */
   position: string | null
+  /** Справка о составе коллегии: судьи, должности, категории */
+  panel: PanelLine[]
   contest: {
     id: number
     title: string

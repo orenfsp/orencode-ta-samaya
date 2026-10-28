@@ -90,8 +90,9 @@ class Applications:
         if contest_id is not None:
             contest = await self._public_contest(contest_id)
             busy = await self._members.busy_users(contest.id, [user.id for user in users], None)
+            suspended = await self._members.suspensions([user.id for user in users], _now().date())
             for user in users:
-                found = Eligibility.problems(user, contest)
+                found = Eligibility.problems(user, contest, suspended.get(user.id))
                 if user.id in busy:
                     found.append("уже заявлен на это соревнование")
                 problems[user.id] = found
@@ -106,7 +107,8 @@ class Applications:
         user = await self._user(user_id)
         as_athlete = as_ == ApplicationCreator.ATHLETE
         contests = await self._applications.open_contests(_now(), user.id if as_athlete else None)
-        return [(item, Eligibility.problems(user, item) if as_athlete else []) for item in contests]
+        until = (await self._members.suspensions([user.id], _now().date())).get(user.id)
+        return [(item, Eligibility.problems(user, item, until) if as_athlete else []) for item in contests]
 
     async def mine(self, user_id: UUID, as_: ApplicationCreator) -> Sequence[ContestApplicationModel]:
         """Возвращает заявки пользователя: как тренера или как участника."""
@@ -212,6 +214,18 @@ class Applications:
             await self._notifications.application_submitted(contest.organizer_id, user.id, contest.title, _name(user))
         await self._uow.commit()
         return await self._reload(item.id)
+
+    async def repeat(self, user_id: UUID, roles: frozenset[Role], contest_id: int, source_id: int, ip: str | None) -> ContestApplicationModel:
+        """Подаёт на соревнование заявку тем же составом, что в своей прошлой заявке, без отказавшихся участников."""
+        source = await self.get(user_id, roles, source_id)
+        if source.created_by != user_id:
+            raise Forbidden("Повторить можно только свою заявку")
+        members = [item for item in source.members if item.is_active and item.confirmation != MemberConfirmation.DECLINED]
+        captain = next((item.user_id for item in members if item.is_captain), None)
+        created = await self.create(user_id, roles, contest_id, source.created_as, source.team_name, [item.user_id for item in members], captain, ip)
+        await self._write(AuditAction.APPLICATION_REPEAT, created, user_id, ip, {"source": source.id, "contest_id": contest_id})
+        await self._uow.commit()
+        return created
 
     async def create_for_athletes(
         self, user_id: UUID, roles: frozenset[Role], contest_id: int, member_ids: list[UUID], ip: str | None
@@ -329,7 +343,8 @@ class Applications:
         if member.confirmation != C.INVITED or not member.is_active or item.status not in self.CHANGEABLE:
             raise InvalidStatus()
         self._ensure_registration(item.contest)
-        problems = Eligibility.problems(user, item.contest)
+        until = (await self._members.suspensions([user.id], _now().date())).get(user.id)
+        problems = Eligibility.problems(user, item.contest, until)
         if problems:
             raise ValidationFailed(fields={"members": [f"Вы: {', '.join(problems)}"]})
         await self._members.update(member, {"confirmation": C.CONFIRMED, "responded_at": _now()})
@@ -521,8 +536,9 @@ class Applications:
         size = Eligibility.team_size_problem(contest, len(active), final=True)
         if size:
             errors.append(size)
+        suspended = await self._members.suspensions([member.user_id for member in active], _now().date())
         for member in active:
-            problems = Eligibility.problems(member.user, contest)
+            problems = Eligibility.problems(member.user, contest, suspended.get(member.user_id))
             if problems:
                 errors.append(f"{_name(member.user)}: {', '.join(problems)}")
         if errors:
@@ -560,13 +576,14 @@ class Applications:
         """Проверяет допуск и занятость указанных пользователей, дописывая ошибки в errors; возвращает их модели."""
         users = await self._members.users(ids)
         busy = await self._members.busy_users(contest.id, ids, application_id)
+        suspended = await self._members.suspensions(ids, _now().date())
         messages: list[str] = []
         for member_id in ids:
             user = users.get(member_id)
             if user is None or not user.is_active:
                 messages.append("Спортсмен не найден")
                 continue
-            problems = Eligibility.problems(user, contest)
+            problems = Eligibility.problems(user, contest, suspended.get(member_id))
             if member_id in busy:
                 problems.append("уже заявлен на это соревнование")
             if problems:

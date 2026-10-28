@@ -34,6 +34,8 @@ import {
   showToast,
 } from '@/shared/ui'
 
+import { newsConfirmation } from '../model/transition-confirmation'
+
 const STEP = 20
 /** Бэк отдаёт не больше 100 за раз */
 const MAX = 100
@@ -65,6 +67,7 @@ export function NewsAdminPage() {
   const [params, setParams] = useSearchParams()
   const [limit, setLimit] = useState(STEP)
   const [archiving, setArchiving] = useState<AdminArticle | null>(null)
+  const [confirming, setConfirming] = useState<{ item: AdminArticle; action: NewsTransition } | null>(null)
   const q = (params.get('q') ?? '').slice(0, 200)
   const status = params.get('status') ?? ''
   const tag = params.get('tag') ?? ''
@@ -203,7 +206,7 @@ export function NewsAdminPage() {
                         variant={item.status === 'draft' ? 'primary' : 'outline'}
                         loading={transition.isPending && transition.variables?.id === item.id}
                         disabled={transition.isPending}
-                        onClick={() => transition.mutate({ id: item.id, action: main.action })}
+                        onClick={() => setConfirming({ item, action: main.action })}
                       >
                         {main.label}
                       </Button>
@@ -251,6 +254,17 @@ export function NewsAdminPage() {
           )}
         </div>
       )}
+
+      <ConfirmModal
+        open={confirming !== null}
+        onClose={() => setConfirming(null)}
+        title={newsConfirmation[confirming?.action ?? 'publish'].title}
+        description={`«${confirming?.item.title ?? ''}». ${newsConfirmation[confirming?.action ?? 'publish'].description}`}
+        confirmLabel={newsConfirmation[confirming?.action ?? 'publish'].label}
+        onConfirm={async () => {
+          if (confirming) await transition.mutateAsync({ id: confirming.item.id, action: confirming.action })
+        }}
+      />
 
       <ConfirmModal
         open={Boolean(archiving)}

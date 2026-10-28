@@ -7,6 +7,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstrai
 
 from core.config import settings
 from infrastructure.enums import (
+    CALENDAR_PLAN_TITLES,
+    CalendarPlan,
     CONTEST_STATUS_TITLES,
     PARTICIPATION_TYPE_TITLES,
     VERIFICATION_STATUS_TITLES,
@@ -21,6 +23,7 @@ ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5
 RefId = Annotated[int, Field(ge=1)]
 TeamSize = Annotated[int, Field(ge=1, le=100)]
 Amount = Annotated[int, Field(ge=0)]
+PlanNumber = Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)]
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
 
 
@@ -58,6 +61,8 @@ class ContestIn(BaseModel):
     registration_closes_at: AwareDatetime
     prize_fund_text: ShortText | None = None
     prize_fund_amount: Amount | None = None
+    calendar_plan: CalendarPlan = CalendarPlan.NONE
+    calendar_plan_number: PlanNumber | None = None
     regulations_file_id: UUID | None = None
     photo_file_ids: list[UUID] = Field(default_factory=list)
 
@@ -86,6 +91,8 @@ class ContestPatch(BaseModel):
     registration_closes_at: AwareDatetime | None = None
     prize_fund_text: ShortText | None = None
     prize_fund_amount: Amount | None = None
+    calendar_plan: CalendarPlan | None = None
+    calendar_plan_number: PlanNumber | None = None
     regulations_file_id: UUID | None = None
     photo_file_ids: list[UUID] | None = None
 
@@ -180,6 +187,8 @@ class ContestOut(BaseModel):
     registration_closes_at: datetime
     prize_fund_text: str | None
     prize_fund_amount: int | None
+    calendar_plan: CalendarPlan
+    calendar_plan_number: str | None
     status: ContestStatus
     cancel_reason: str | None
     verification_status: VerificationStatus
@@ -199,6 +208,12 @@ class ContestOut(BaseModel):
     def status_title(self) -> str:
         """Возвращает человекочитаемое название статуса соревнования."""
         return CONTEST_STATUS_TITLES[self.status]
+
+    @computed_field
+    @property
+    def calendar_plan_title(self) -> str:
+        """Название календарного плана соревнования."""
+        return CALENDAR_PLAN_TITLES[self.calendar_plan]
 
     @computed_field
     @property

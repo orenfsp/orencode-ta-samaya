@@ -1,10 +1,10 @@
-from io import BytesIO
+from datetime import datetime
+from typing import Any
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
+from core import xlsx as xlsx_kit
+from core.xlsx import Column
 
 from reports.domain.layout import facts, sections
 from reports.domain.person_report import PersonReport, full_name
@@ -12,8 +12,6 @@ from reports.domain.person_report import PersonReport, full_name
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT.parent / "documents" / "assets"
 TEMPLATES = Environment(loader=FileSystemLoader(ROOT / "templates"), autoescape=select_autoescape(["html"]))
-THIN = Side(style="thin", color="C8C9CA")
-HEAD = PatternFill("solid", fgColor="EDEDED")
 
 
 def summary(report: PersonReport) -> list[tuple[int, str]]:
@@ -38,42 +36,46 @@ def pdf(report: PersonReport) -> bytes:
 
 
 def xlsx(report: PersonReport) -> bytes:
-    """Рендерит отчёт по человеку в книгу xlsx: сводный лист и лист на каждый раздел."""
-    book = Workbook()
-    sheet = book.active
-    assert sheet is not None
-    sheet.title = "Сводка"
-    sheet.cell(1, 1, "Отчёт по человеку").font = Font(bold=True, size=14)
-    row = 3
-    for label, value in facts(report):
-        sheet.cell(row, 1, label).font = Font(color="5B5C62")
-        sheet.cell(row, 2, value)
-        row += 1
-    row += 1
-    for value, caption in summary(report):
-        sheet.cell(row, 1, caption).font = Font(color="5B5C62")
-        sheet.cell(row, 2, value).font = Font(bold=True)
-        row += 1
-    sheet.column_dimensions["A"].width = 24
-    sheet.column_dimensions["B"].width = 48
+    """Рендерит отчёт по человеку в книгу xlsx: сводный лист и лист на каждый раздел; даты — датами, места и баллы — числами."""
+    book = xlsx_kit.book()
+    overview = xlsx_kit.sheet(book, "Сводка")
+    row = xlsx_kit.header(overview, f"Отчёт по человеку: {full_name(report.user)}", [item for item in facts(report) if item[0] == "Период"])
+    xlsx_kit.table(
+        overview,
+        row,
+        [Column("Показатель", width=28), Column("Значение", "int", 14)],
+        [[caption, value] for value, caption in summary(report)],
+        freeze=True,
+    )
+    info_row = overview.max_row + 3
+    xlsx_kit.table(overview, info_row, [Column("Сведения", width=28), Column("Значение", "wrap", 60)], [(label, report.user.birth_date if label == "Дата рождения" else value) for label, value in facts(report) if label not in ("Сформирован", "Период")], freeze=False)
     for section in sections(report):
-        page = book.create_sheet(section.title[:31])
-        for column, header in enumerate(section.headers, start=1):
-            cell = page.cell(1, column, header)
-            cell.font = Font(bold=True)
-            cell.fill = HEAD
-            cell.border = Border(bottom=THIN)
-        if not section.rows:
-            page.cell(2, 1, section.empty).font = Font(color="5B5C62")
-        widths = [len(header) for header in section.headers]
-        for index, values in enumerate(section.rows, start=2):
-            for column, value in enumerate(values, start=1):
-                cell = page.cell(index, column, value)
-                cell.alignment = Alignment(vertical="top", wrap_text=True)
-                widths[column - 1] = max(widths[column - 1], min(len(str(value)), 60))
-        for column, width in enumerate(widths, start=1):
-            page.column_dimensions[get_column_letter(column)].width = width + 3
-        page.freeze_panes = "A2"
-    buffer = BytesIO()
-    book.save(buffer)
-    return buffer.getvalue()
+        page = xlsx_kit.sheet(book, section.title)
+        start = xlsx_kit.header(page, section.title, [("Человек", full_name(report.user))])
+        rows: list[list[Any]] = [[_date(value) for value in values] for values in section.rows]
+        headers = section.headers
+        if section.key == "starts":
+            headers = ("Начало", "Окончание", "Соревнование", "Дисциплина", "Уровень", "Формат", "Место проведения", "Команда", "Состав команды", "Место", "Баллы")
+            rows = [[item.contest.starts_on, item.contest.ends_on, item.contest.title, item.contest.discipline.name, item.contest.contest_level.name, item.contest.contest_format.name, ", ".join(part for part in (item.contest.municipality.name if item.contest.municipality else None, item.contest.venue) if part), item.team_name or "—", ", ".join(full_name(user) for user in item.members) if item.team_name else "—", item.place if item.place is not None else "Дисквалификация" if item.entered else "—", item.points] for item in report.starts]
+        elif section.key in ("ranks", "categories"):
+            headers = (section.headers[0], "Присвоен", "Действует до", "Статус")
+            qualifications = report.ranks if section.key == "ranks" else report.categories
+            rows = [[item.item_name, item.valid_from, item.valid_until, "Действует" if item.status.value == "approved" else "Заменён"] for item in qualifications]
+        elif section.key in ("judging", "coached"):
+            headers = ("Начало", "Окончание", *section.headers[1:])
+            contests = [item.contest for item in report.judged] if section.key == "judging" else [item.contest for item in report.coached]
+            rows = [[contest.starts_on, contest.ends_on, *values[1:]] for contest, values in zip(contests, rows)]
+        numeric = [bool(rows) and all(isinstance(line[column], int) or line[column] in ("", "—") for line in rows) for column in range(len(headers))]
+        columns = [Column(header, "int" if numeric[column] else "wrap") for column, header in enumerate(headers)]
+        xlsx_kit.table(page, start, columns, rows, empty=section.empty)
+    return xlsx_kit.save(book)
+
+
+def _date(value: object) -> object:
+    """Дата «ДД.ММ.ГГГГ» строкой → дата, чтобы в Excel по ней сортировали и фильтровали."""
+    if isinstance(value, str) and len(value) == 10 and value[2] == "." and value[5] == ".":
+        try:
+            return datetime.strptime(value, "%d.%m.%Y").date()
+        except ValueError:
+            return value
+    return value

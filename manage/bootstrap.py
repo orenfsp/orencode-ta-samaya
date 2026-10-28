@@ -18,6 +18,8 @@ from infrastructure.account.user import UserModel
 from infrastructure.base import Base
 from infrastructure.contests.contest import ContestModel
 from infrastructure.enums import DocumentKind
+from infrastructure.qualifications.qualification import QualificationModel
+from qualifications.domain.qualifications import signature
 
 # Демо-база: схема из моделей, данные из seed/seed.sql, файлы из seed/<тип>/…
 # Запускается при каждом старте контейнера и возвращает базу в чистое тестовое состояние.
@@ -67,6 +69,10 @@ async def bootstrap() -> None:
                 raise LookupError(row["contest_id"])
             form = DocumentForm.from_plain(json.loads(row["form"]))
             await issuer.store_for(contest, DocumentKind(row["kind"]), form, federation)
+        # Подпись QR-проверки разряда считается секретом приложения, поэтому seed.sql оставляет её пустой
+        secret = settings.document_signing_secret.get_secret_value().encode()
+        for item in await session.scalars(select(QualificationModel).where(QualificationModel.token.is_not(None))):
+            item.signature = signature(item, secret)
         await session.commit()
 
     await engine.dispose()

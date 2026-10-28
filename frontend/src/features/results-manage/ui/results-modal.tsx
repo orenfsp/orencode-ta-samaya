@@ -1,6 +1,6 @@
 import { personAvatar } from '@/entities/person'
 import { useState, type FormEvent } from 'react'
-import { useResultsForm, type ResultEntry, type ResultsScope } from '@/entities/result'
+import { useResultsForm, type ImportPreview, type ResultEntry, type ResultsScope } from '@/entities/result'
 import { plural } from '@/shared/lib'
 import {
   Button,
@@ -15,6 +15,7 @@ import {
 } from '@/shared/ui'
 import { placesValid, type PlaceDraft } from '../model/places'
 import { useSaveResults } from '../model/use-save-results'
+import { ProtocolImport } from './protocol-import'
 
 const fromEntry = (entry: ResultEntry): PlaceDraft => ({
   place: entry.place != null ? String(entry.place) : '',
@@ -43,6 +44,7 @@ export function ResultsModal({
   const save = useSaveResults(scope, contest.id)
   const [edits, setEdits] = useState<Record<number, PlaceDraft>>({})
   const [error, setError] = useState<string | null>(null)
+  const [source, setSource] = useState<string | undefined>()
   const entries = form.data?.items ?? []
   const editable = form.data?.editable ?? false
   const value = (entry: ResultEntry) => edits[entry.application_id] ?? fromEntry(entry)
@@ -68,15 +70,29 @@ export function ResultsModal({
       return
     }
     save.mutate(
-      drafts.map(({ entry, draft }) => ({
-        application_id: entry.application_id,
-        place: draft.disqualified ? null : Number(draft.place),
-      })),
+      {
+        items: drafts.map(({ entry, draft }) => ({
+          application_id: entry.application_id,
+          place: draft.disqualified ? null : Number(draft.place),
+        })),
+        source,
+      },
       { onSuccess: onClose },
     )
   }
 
   const team = form.data?.participation_type === 'team'
+  const apply = (preview: ImportPreview, chosen: Record<number, number>) => {
+    const next: Record<number, PlaceDraft> = {}
+    preview.rows.forEach((row) => {
+      const id = chosen[row.line] ?? row.application_id
+      if (id == null || id < 0) return
+      next[id] = { place: row.place != null ? String(row.place) : '', disqualified: row.disqualified }
+    })
+    setError(null)
+    setEdits((current) => ({ ...current, ...next }))
+    setSource(preview.file_name)
+  }
   const count = entries.length
   const alert = error ?? save.error?.message
 
@@ -123,6 +139,9 @@ export function ResultsModal({
           />
         ) : (
           <>
+            {editable && (
+              <ProtocolImport scope={scope} contestId={contest.id} entries={entries} onApply={apply} />
+            )}
             <p className="text-sm text-muted">
               Места идут подряд с 1 и не повторяются. Дисквалифицированные — без места
             </p>

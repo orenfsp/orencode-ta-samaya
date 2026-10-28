@@ -29,6 +29,16 @@ class PersonOut(BaseModel):
         return cls(id=user.id, name=name, birth_date=user.birth_date)
 
 
+class BasisOut(BaseModel):
+    result_id: int
+    contest_id: int
+    contest_title: str
+    contest_level: str
+    starts_on: date
+    place: int | None
+    points: int
+
+
 class QualificationOut(BaseModel):
     id: UUID
     kind: QualificationKind
@@ -47,6 +57,10 @@ class QualificationOut(BaseModel):
     valid_until: date | None
     decided_at: datetime | None
     created_at: datetime
+    basis_result: BasisOut | None = None
+    order_number: str | None = None
+    order_date: date | None = None
+    token: str | None = None
 
     @classmethod
     def of(cls, item: QualificationModel) -> "QualificationOut":
@@ -69,6 +83,20 @@ class QualificationOut(BaseModel):
             valid_until=item.valid_until,
             decided_at=item.decided_at,
             created_at=item.created_at,
+            basis_result=BasisOut(
+                result_id=item.contest_result.id,
+                contest_id=item.basis_contest.id,
+                contest_title=item.basis_contest.title,
+                contest_level=item.basis_contest.contest_level.name,
+                starts_on=item.basis_contest.starts_on,
+                place=item.contest_result.place,
+                points=item.contest_result.points,
+            )
+            if item.contest_result and item.basis_contest
+            else None,
+            order_number=item.order_number,
+            order_date=item.order_date,
+            token=item.token,
         )
 
 
@@ -78,6 +106,32 @@ class SubmitIn(BaseModel):
     item_id: int = Field(ge=1)
     document_file_id: UUID
     basis: Basis | None = None
+    contest_result_id: int | None = Field(default=None, ge=1)
+
+
+class ApproveIn(BaseModel):
+    order_number: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    order_date: date
+
+
+class VerifyOut(BaseModel):
+    valid: bool
+    kind_title: str
+    item_name: str
+    person: str
+    status: str
+    valid_from: date | None
+    valid_until: date | None
+    order_number: str | None
+    order_date: date | None
+
+
+class ResultChoiceOut(BaseModel):
+    id: int
+    contest_title: str
+    starts_on: date
+    place: int
+    points: int
 
 
 class RejectIn(BaseModel):

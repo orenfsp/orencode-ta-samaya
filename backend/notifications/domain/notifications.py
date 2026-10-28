@@ -61,6 +61,9 @@ class Notifications:
         T.AUTH_PASSWORD_CHANGED, T.AUTH_NEW_DEVICE, T.AUTH_EMAIL_CHANGED, T.SYSTEM_TEST,
         T.QUALIFICATION_APPROVED, T.QUALIFICATION_REJECTED, T.QUALIFICATION_EXPIRING, T.QUALIFICATION_EXPIRED,
         T.JUDGE_ASSIGNED, T.JUDGE_REMOVED, T.CONSENT_APPROVED, T.CONSENT_REJECTED, T.SQUAD_INCLUDED,
+        T.COACH_LINK_REQUESTED, T.COACH_LINK_DECIDED, T.DEADLINE_REGISTRATION, T.DEADLINE_GOVERNOR,
+        T.DEADLINE_REPORT, T.ANTIDOPING_EXPIRING, T.RANK_POSSIBLE, T.APPEAL_DECIDED, T.VIOLATION_DECIDED,
+        T.TRAINING_ATTESTATION,
     })
     ROLE_LABELS = {Role.ATHLETE: "Спортсмен", Role.COACH: "Тренер", Role.JUDGE: "Судья",
                    Role.ORGANIZER: "Организатор", Role.FEDERATION: "Сотрудник федерации"}
@@ -177,6 +180,17 @@ class Notifications:
         await self._send(user_id, T.QUALIFICATION_EXPIRING, "Скоро истекает срок",
                          f"«{item}» действует до {valid_until}, осталось {days} дн. Подайте заявку на подтверждение.", link)
 
+    async def qualification_expiring_watchers(self, user_id: UUID, coach_ids: Iterable[UUID], item: str, valid_until: str, days: int) -> None:
+        """Предупреждает тренеров спортсмена и федерацию об истекающем или истёкшем разряде или категории."""
+        owner = await self._users.get(user_id)
+        who = _name(owner) if owner else "Спортсмен"
+        state = f"истёк {valid_until}" if days <= 0 else f"действует до {valid_until}, осталось {days} дн."
+        kind = T.QUALIFICATION_EXPIRED if days <= 0 else T.QUALIFICATION_EXPIRING
+        for coach in self._unique(coach_ids, user_id):
+            await self._send(coach, kind, "Срок разряда спортсмена", f"{who}: «{item}» {state}", "/cabinet/coach/ranks")
+        for recipient in await self._users.active_federation_ids(user_id):
+            await self._send(recipient, kind, "Истекает разряд или категория", f"{who}: «{item}» {state}", "/cabinet/federation/qualifications")
+
     async def judge_assignment(self, judge_id: UUID, actor_id: UUID, kind: T, contest: str, position: str) -> None:
         """Уведомляет судью о назначении на соревнование или снятии с него."""
         title, text = {
@@ -193,6 +207,32 @@ class Notifications:
                 continue
             text = f"Поздравляем! Вы вошли в {'резерв сборной' if is_reserve else 'сборную'} {title}."
             await self._send(user_id, T.SQUAD_INCLUDED, "Вы в сборной", text, link)
+
+    async def coach_link(self, recipient_id: UUID, actor_id: UUID, kind: T, title: str, text: str, link: str) -> None:
+        """Уведомляет второго участника связи тренер ↔ спортсмен о её изменении."""
+        for recipient in self._unique([recipient_id], actor_id):
+            await self._send(recipient, kind, title, text, link)
+
+    async def training(self, recipients: Iterable[UUID], actor_id: UUID, kind: T, title: str, text: str, link: str) -> None:
+        """Сообщает спортсмену и тренерам о зачислении, переводе, отчислении или итогах аттестации."""
+        for recipient in self._unique(recipients, actor_id):
+            await self._send(recipient, kind, title, text, link)
+
+    async def deadline(self, user_id: UUID, kind: T, title: str, text: str, link: str) -> None:
+        """Отправляет напоминание о сроке."""
+        await self._send(user_id, kind, title, text, link)
+
+    async def dispute_filed(self, actor_id: UUID, kind: T, title: str, text: str, also: Iterable[UUID]) -> None:
+        """Сообщает федерации и указанным людям о новой апелляции или рапорте о нарушении."""
+        federation = await self._users.active_federation_ids(actor_id)
+        for recipient in self._unique([*federation, *also], actor_id):
+            link = "/cabinet/federation/disputes" if recipient in federation else "/cabinet/organizer/competitions"
+            await self._send(recipient, kind, title, text, link)
+
+    async def dispute(self, recipients: Iterable[UUID], actor_id: UUID, kind: T, title: str, text: str, link: str) -> None:
+        """Сообщает участникам о ходе рассмотрения апелляции или о решении по нарушению."""
+        for recipient in self._unique(recipients, actor_id):
+            await self._send(recipient, kind, title, text, link)
 
     async def contest_verification_requested(self, actor_id: UUID, title: str, edited: bool) -> None:
         """Уведомляет сотрудников федерации о запросе верификации соревнования."""

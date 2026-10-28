@@ -8,6 +8,7 @@ export const kindOrder: DocumentKind[] = [
   'thanks',
   'judge_thanks',
   'reference',
+  'judge_panel',
 ]
 
 export const kindLabels: Record<DocumentKind, string> = {
@@ -17,6 +18,7 @@ export const kindLabels: Record<DocumentKind, string> = {
   thanks: 'Благодарности тренерам',
   judge_thanks: 'Благодарности судьям',
   reference: 'Справки об участии',
+  judge_panel: 'Справка о составе судейской коллегии',
 }
 
 /** Кому достанется документ: подсказка под выбором вида */
@@ -29,6 +31,8 @@ export const kindRecipients: Record<DocumentKind, string> = {
   judge_thanks: 'Судьям коллегии: всем или выбранным. Должность подставляется сама',
   reference:
     'Каждому спортсмену, тренерам, подавшим заявки, и судьям коллегии. Текст собирается из заявки, мест и должности',
+  judge_panel:
+    'Одна справка на соревнование: судьи коллегии, должности и категории на дату начала. Получатель — организатор',
 }
 
 type Content = Pick<DocumentForm, 'title' | 'lead' | 'text' | 'recipients' | 'places_to'>
@@ -60,6 +64,13 @@ export const presets: Record<DocumentKind, Content> = {
     title: 'Благодарность',
     lead: 'выражается',
     text: 'за объективное судейство',
+    recipients: 'participants',
+    places_to: 3,
+  },
+  judge_panel: {
+    title: 'о составе судейской коллегии',
+    lead: '',
+    text: 'Справка выдана для предъявления по месту требования.',
     recipients: 'participants',
     places_to: 3,
   },

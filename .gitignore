@@ -7,3 +7,10 @@ venv/
 node_modules/
 dist/
 .idea/
+
+# Внутренние рабочие документы в репозиторий не попадают
+docs/
+PROGRESS.md
+STACK.md
+*.docx
+.vscode/
